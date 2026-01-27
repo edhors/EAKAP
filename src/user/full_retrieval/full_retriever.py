@@ -46,29 +46,14 @@ class FullRetrieval:
                     f"vector_store must be a Chroma instance, "
                     f"got {type(vector_store).__name__}"
                 )
-            # Validate that the vectorstore has a collection
-            try:
-                if not hasattr(vector_store, '_collection') or vector_store._collection is None:
-                    raise RuntimeError(
-                        "Provided vector_store does not have a valid ChromaDB collection. "
-                        "Ensure the vectorstore is properly initialized."
-                    )
-            except Exception as e:
-                raise RuntimeError(
-                    f"Failed to validate vector_store: {str(e)}"
-                ) from e
             self._vector_store = vector_store
         else:
             # Path-based initialization
-            if not persist_directory:
-                raise ValueError("persist_directory is required when vector_store is not provided")
-            if not isinstance(persist_directory, str) or not persist_directory.strip():
-                raise ValueError("persist_directory must be a non-empty string")
+            if not persist_directory or not isinstance(persist_directory, str):
+                raise ValueError("persist_directory is required and must be a non-empty string when vector_store is not provided")
             
-            if not collection_name:
-                raise ValueError("collection_name is required when vector_store is not provided")
-            if not isinstance(collection_name, str) or not collection_name.strip():
-                raise ValueError("collection_name must be a non-empty string")
+            if not collection_name or not isinstance(collection_name, str):
+                raise ValueError("collection_name is required and must be a non-empty string when vector_store is not provided")
             
             if not embedding_function:
                 raise ValueError("embedding_function is required when vector_store is not provided")
@@ -85,12 +70,6 @@ class FullRetrieval:
                     collection_name=collection_name,
                     embedding_function=embedding_function
                 )
-                # Validate that collection was created/loaded successfully
-                if not hasattr(self._vector_store, '_collection') or self._vector_store._collection is None:
-                    raise RuntimeError(
-                        f"Failed to initialize ChromaDB collection '{collection_name}' "
-                        f"at '{persist_directory}'. The collection may not exist or the path may be invalid."
-                    )
             except FileNotFoundError as e:
                 raise RuntimeError(
                     f"ChromaDB persistence directory not found: {persist_directory}. "
@@ -147,17 +126,12 @@ class FullRetrieval:
                 f"Found invalid value: {str(e)}"
             ) from e
         
-        # Check for NaN or Infinity values
+        # Check for NaN or Infinity values (ChromaDB will reject these anyway, but fail fast)
         for i, val in enumerate(query_embeddings):
-            if math.isnan(val):
+            if math.isnan(val) or math.isinf(val):
                 raise ValueError(
-                    f"query_embeddings contains NaN (Not a Number) at index {i}. "
-                    "All values must be finite numbers."
-                )
-            if math.isinf(val):
-                raise ValueError(
-                    f"query_embeddings contains Infinity at index {i}. "
-                    "All values must be finite numbers."
+                    f"query_embeddings contains invalid value at index {i} "
+                    f"(NaN or Infinity). All values must be finite numbers."
                 )
         
         # Validate threshold
@@ -180,12 +154,6 @@ class FullRetrieval:
         
         try:
             # Access underlying ChromaDB collection
-            if not hasattr(self._vector_store, '_collection'):
-                raise RuntimeError(
-                    "Vector store does not have a _collection attribute. "
-                    "Ensure the vector_store is properly initialized."
-                )
-            
             collection = self._vector_store._collection
             if collection is None:
                 raise RuntimeError(
@@ -193,16 +161,10 @@ class FullRetrieval:
                     "The collection may not have been initialized properly."
                 )
             
-            # Get collection count with error handling
-            try:
-                collection_count = collection.count()
-                if collection_count == 0:
-                    return []  # Empty collection, return empty results
-            except Exception as e:
-                raise RuntimeError(
-                    f"Failed to access ChromaDB collection count: {str(e)}. "
-                    "The collection may be corrupted or inaccessible."
-                ) from e
+            # Get collection count
+            collection_count = collection.count()
+            if collection_count == 0:
+                return []  # Empty collection, return empty results
             
             # Determine n_results: use k if provided, otherwise get all results
             # ChromaDB will return results sorted by distance (ascending)
@@ -228,51 +190,18 @@ class FullRetrieval:
                     "Check that the collection is accessible and the embeddings are valid."
                 ) from e
             
-            # Validate query results structure
-            if not isinstance(results, dict):
-                raise RuntimeError(
-                    f"ChromaDB query returned unexpected result type: {type(results).__name__}. "
-                    "Expected a dictionary with 'ids', 'distances', and 'metadatas' keys."
-                )
-            
-            if 'ids' not in results:
-                raise RuntimeError(
-                    "ChromaDB query result missing 'ids' key. "
-                    "The query result structure is invalid."
-                )
-            
-            if 'distances' not in results:
-                raise RuntimeError(
-                    "ChromaDB query result missing 'distances' key. "
-                    "The query result structure is invalid."
-                )
-            
             # Process results
             # ChromaDB returns: {'ids', 'distances', 'metadatas', 'documents'}
             # distances is a list of lists (one list per query embedding)
             # For a single query, we get distances[0]
-            if not results['ids'] or not results['ids'][0]:
+            if not results.get('ids') or not results['ids'][0]:
                 return []
             
             ids = results['ids'][0]
             distances = results['distances'][0]
             
-            # Validate that ids and distances have the same length
-            if len(ids) != len(distances):
-                raise RuntimeError(
-                    f"Mismatch between ids ({len(ids)}) and distances ({len(distances)}) lengths. "
-                    "ChromaDB query result is corrupted."
-                )
-            
-            # Safely extract metadatas
-            metadatas = []
-            if 'metadatas' in results and results['metadatas']:
-                if isinstance(results['metadatas'], list) and len(results['metadatas']) > 0:
-                    metadatas = results['metadatas'][0]
-                    if not isinstance(metadatas, list):
-                        metadatas = []
-                else:
-                    metadatas = []
+            # Extract metadatas (ChromaDB guarantees structure)
+            metadatas = results.get('metadatas', [[]])[0] if results.get('metadatas') else []
             
             # Convert distances to similarity scores
             # For cosine similarity: similarity = 1 - distance
@@ -280,78 +209,39 @@ class FullRetrieval:
             processed_results = []
             
             for i, (doc_id, distance) in enumerate(zip(ids, distances)):
-                try:
-                    # Validate distance is numeric
-                    if not isinstance(distance, (int, float)):
-                        raise ValueError(f"Distance at index {i} is not numeric: {type(distance).__name__}")
-                    
-                    distance = float(distance)
-                    
-                    # Check for invalid distance values
-                    if math.isnan(distance):
-                        # Skip results with NaN distances
-                        continue
-                    if math.isinf(distance):
-                        # Skip results with infinite distances
-                        continue
-                    
-                    # Convert distance to similarity score (1 - distance for cosine)
-                    # Clamp to [0, 1] range in case distance > 1
-                    similarity_score = max(0.0, min(1.0, 1.0 - distance))
-                    
-                    # Filter by threshold
-                    if similarity_score < threshold:
-                        continue
-                    
-                    # Extract metadata with error handling
-                    metadata = {}
-                    try:
-                        if i < len(metadatas) and metadatas[i] is not None:
-                            if isinstance(metadatas[i], dict):
-                                metadata = metadatas[i]
-                    except (IndexError, TypeError) as e:
-                        # Metadata extraction failed, use empty dict
-                        metadata = {}
-                    
-                    # Extract doc_id and chunk_id from metadata, with fallback to id
-                    # Metadata should contain both doc_id and chunk_id
-                    try:
-                        doc_id_meta = metadata.get('doc_id') if isinstance(metadata, dict) else None
-                        chunk_id = metadata.get('chunk_id') if isinstance(metadata, dict) else None
-                    except Exception as e:
-                        # Metadata access failed, use fallbacks
-                        doc_id_meta = None
-                        chunk_id = None
-                    
-                    # Fallback: if metadata is missing, use the id itself
-                    # This handles cases where metadata might not be properly set
-                    if doc_id_meta is None:
-                        doc_id_meta = str(doc_id) if doc_id is not None else f"unknown_{i}"
-                    if chunk_id is None:
-                        chunk_id = str(doc_id) if doc_id is not None else f"unknown_{i}"
-                    
-                    # Ensure doc_id and chunk_id are strings
-                    try:
-                        doc_id_meta = str(doc_id_meta)
-                        chunk_id = str(chunk_id)
-                    except Exception as e:
-                        raise RuntimeError(
-                            f"Failed to convert doc_id or chunk_id to string at index {i}: {str(e)}"
-                        ) from e
-                    
-                    processed_results.append({
-                        "doc_id": doc_id_meta,
-                        "chunk_id": chunk_id,
-                        "score": float(similarity_score)
-                    })
-                    
-                except Exception as e:
-                    # Log error but continue processing other results
-                    # This prevents one bad result from breaking the entire query
-                    raise RuntimeError(
-                        f"Error processing result at index {i}: {str(e)}. "
-                        f"doc_id={doc_id}, distance={distance}"
-                    ) from e
+                # Convert distance to float (ChromaDB always returns numeric)
+                distance = float(distance)
+                
+                # Skip invalid distance values
+                if math.isnan(distance) or math.isinf(distance):
+                    continue
+                
+                # Convert distance to similarity score (1 - distance for cosine)
+                # Clamp to [0, 1] range in case distance > 1
+                similarity_score = max(0.0, min(1.0, 1.0 - distance))
+                
+                # Filter by threshold
+                if similarity_score < threshold:
+                    continue
+                
+                # Extract metadata (safe access with fallback)
+                metadata = metadatas[i] if i < len(metadatas) and isinstance(metadatas[i], dict) else {}
+                
+                # Extract doc_id and chunk_id from metadata, with fallback to id
+                doc_id_meta = metadata.get('doc_id') if metadata else None
+                chunk_id = metadata.get('chunk_id') if metadata else None
+                
+                # Fallback: if metadata is missing, use the id itself
+                if doc_id_meta is None:
+                    doc_id_meta = str(doc_id) if doc_id is not None else f"unknown_{i}"
+                if chunk_id is None:
+                    chunk_id = str(doc_id) if doc_id is not None else f"unknown_{i}"
+                
+                processed_results.append({
+                    "doc_id": str(doc_id_meta),
+                    "chunk_id": str(chunk_id),
+                    "score": similarity_score
+                })
             
             return processed_results
             
