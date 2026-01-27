@@ -80,7 +80,10 @@ class Indexer:
         3. Returns document IDs from the vector store
         
         Args:
-            documents: List of LangChain Document objects to index
+            documents: List of LangChain Document objects to index. Each document's
+                      metadata should contain a 'doc_id' field (or 'document_id' for
+                      backward compatibility) to uniquely identify the document. If not
+                      provided, 'default' will be used.
         
         Returns:
             List[str]: List of document IDs returned by the vector store
@@ -89,6 +92,11 @@ class Indexer:
             ValueError: If documents list is empty or None
             TypeError: If documents is not a list or contains invalid items
             RuntimeError: If indexing fails at any step
+        
+        Note:
+            Chunk IDs are assigned in the format: {doc_id}_chunk_{incremental_index}
+            where doc_id comes from metadata (preferring 'doc_id', falling back to
+            'document_id' for backward compatibility).
         """
         if not documents:
             raise ValueError("documents list cannot be empty or None")
@@ -104,8 +112,8 @@ class Indexer:
             split_documents = self._text_processor.split_documents(documents)
             
             # Step 2: Add unique chunk IDs to split documents
-            # Track chunk indices per document_id to ensure uniqueness across all chunks
-            chunk_counter = {}  # {document_id: counter}
+            # Track chunk indices per doc_id to ensure uniqueness across all chunks
+            chunk_counter = {}  # {doc_id: counter}
             
             for chunk in split_documents:
                 # Ensure we have a fresh metadata dict (not shared reference)
@@ -116,17 +124,17 @@ class Indexer:
                     # Create a deep copy to avoid shared references
                     chunk.metadata = dict(chunk.metadata)
                 
-                # Get or create document_id for this chunk
-                document_id = chunk.metadata.get("document_id", "default")
+                # Get or create doc_id for this chunk (with backward compatibility for document_id)
+                doc_id = chunk.metadata.get("doc_id") or chunk.metadata.get("document_id", "default")
                 
-                # Initialize counter for this document_id if not exists
-                if document_id not in chunk_counter:
-                    chunk_counter[document_id] = 0
+                # Initialize counter for this doc_id if not exists
+                if doc_id not in chunk_counter:
+                    chunk_counter[doc_id] = 0
                 
                 # Always overwrite chunk_id to ensure uniqueness and proper incrementing
-                # Format: {document_id}_chunk_{incremental_index}
-                chunk.metadata["chunk_id"] = f"{document_id}_chunk_{chunk_counter[document_id]}"
-                chunk_counter[document_id] += 1
+                # Format: {doc_id}_chunk_{incremental_index}
+                chunk.metadata["chunk_id"] = f"{doc_id}_chunk_{chunk_counter[doc_id]}"
+                chunk_counter[doc_id] += 1
             
             # Step 3: Add split documents to vector store
             # The vector store automatically creates embeddings using the embeddings function
