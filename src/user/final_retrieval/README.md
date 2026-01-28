@@ -98,8 +98,8 @@ your_project/
 ### Quick Start
 
 ```python
-from policy_filter import get_filtered_chunk_ids
-from final_retriever import retrieve_chunks
+from policy_filter import PolicyFilter
+from final_retriever import FinalRetriever
 
 # Input from Full Retrieval (upstream)
 candidates = [
@@ -111,16 +111,19 @@ candidates = [
 # Input from SpiceDB (user permissions)
 allowed_doc_ids = ['doc_1', 'doc_2']
 
-# Step 1-3: Filter and get chunk IDs
-chunk_ids = get_filtered_chunk_ids(
+# Step 1-3: Initialize PolicyFilter and get chunk IDs
+# The top_k value is now set during initialization
+pf = PolicyFilter(top_k=2)
+chunk_ids = pf.filter(
     candidates=candidates,
-    allowed_doc_ids=allowed_doc_ids,
-    top_k=2
+    allowed_doc_ids=allowed_doc_ids
 )
 # Output: ['doc_1_chunk_2', 'doc_1_chunk_1']
 
-# Step 4: Retrieve from Chroma
-context = retrieve_chunks(vector_store, chunk_ids)
+# Step 4: Initialize FinalRetriever and retrieve from Chroma
+# The vector_store is now passed during initialization
+retriever = FinalRetriever(vector_store)
+context = retriever.retrieve_chunks(chunk_ids)
 
 # Use in LLM prompt
 prompt = f"""Based on the following context, answer the question.
@@ -135,24 +138,25 @@ Question: What is the remote work policy?
 ### Step-by-Step Usage
 
 ```python
-from policy_filter import (
-    policy_filter,
-    sort_and_select_top_k,
-    extract_chunk_ids,
-)
-from final_retriever import retrieve_chunks
+from policy_filter import PolicyFilter
+from final_retriever import FinalRetriever
+
+# Initialize the modules
+pf = PolicyFilter(top_k=2) # top_k is now set at the class level
+retriever = FinalRetriever(vector_store) # vector_store is passed at init
 
 # Step 1: Filter by policy (ACL check)
-filtered = policy_filter(candidates, allowed_doc_ids)
+filtered = pf.policy_filter(candidates, allowed_doc_ids)
 
 # Step 2: Sort by score and select top K
-selected = sort_and_select_top_k(filtered, top_k=2)
+# Note: This now uses the top_k value provided during pf initialization
+selected = pf.sort_and_select_top_k(filtered)
 
 # Step 3: Extract chunk IDs
-chunk_ids = extract_chunk_ids(selected)
+chunk_ids = pf.extract_chunk_ids(selected)
 
 # Step 4: Retrieve from Chroma
-context = retrieve_chunks(vector_store, chunk_ids)
+context = retriever.retrieve_chunks(chunk_ids)
 ```
 
 ## API Reference
