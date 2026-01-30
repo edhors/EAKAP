@@ -93,19 +93,23 @@ embeddings = Embeddings(provider)
 # 2. Create text processor
 text_processor = TextProcessor(chunk_size=1000, chunk_overlap=200)
 
-# 3. Load documents
-documents = text_processor.load_file("./data/document.pdf", file_type="pdf")
-
-# 4. Create vector store
+# 3. Create vector store
 vector_store = Chroma(
     collection_name="documents",
     embedding_function=embeddings._provider,
     persist_directory="./chroma_db"
 )
 
-# 5. Create indexer and index documents
+# 4. Create indexer and index text
 indexer = Indexer(embeddings, text_processor, vector_store)
-document_ids = indexer.index(documents)
+
+# Option A: Index text directly
+indexer.index("Your text content here", doc_id="doc_1")
+
+# Option B: Load from file and index
+documents = text_processor.load_file("./data/document.pdf", file_type="pdf")
+for i, doc in enumerate(documents):
+    indexer.index(doc.page_content, doc_id=f"doc_{i}")
 
 # 6. Search
 results = vector_store.similarity_search("your query", k=5)
@@ -363,40 +367,46 @@ Initialize the Indexer with required components.
 - `TypeError`: If any parameter is not of the expected type
 - `ValueError`: If vector_store is not properly initialized
 
-#### `index(documents: List[Document]) -> List[str]`
+#### `index(text: Union[str, List[str]], doc_id: Optional[Union[str, List[str]]] = None) -> None`
 
-Process documents through the indexing pipeline and store them.
+Process text through the indexing pipeline and store it.
 
 **Pipeline Steps:**
-1. Splits documents into chunks using TextProcessor
-2. Assigns unique `chunk_id` to each chunk (format: `{document_id}_chunk_{index}`)
-3. Adds split documents to the vector store (embeddings are created automatically)
-4. Returns document IDs from the vector store
+1. Converts text strings to Document objects
+2. Splits documents into chunks using TextProcessor
+3. Assigns unique `chunk_id` to each chunk (format: `{doc_id}_chunk_{index}`)
+4. Adds split documents to the vector store (embeddings are created automatically)
 
 **Parameters:**
-- `documents` (List[Document]): List of LangChain Document objects to index
+- `text` (Union[str, List[str]]): A single text string or list of text strings to index
+- `doc_id` (Optional[Union[str, List[str]]]): Optional document ID(s). If a single string, used for all texts. If a list, must match the length of text list. If None, 'default' is used.
 
 **Returns:**
-- `List[str]`: List of document IDs returned by the vector store
+- `None`
 
 **Raises:**
-- `ValueError`: If documents list is empty or None
-- `TypeError`: If documents is not a list or contains invalid items
+- `ValueError`: If text is empty or None, or if doc_id list length doesn't match text list
+- `TypeError`: If text is not a string or list of strings
 - `RuntimeError`: If indexing fails at any step
 
-**Note:** The Indexer automatically assigns `chunk_id` to each chunk based on its position. If `document_id` exists in metadata, the format is `{document_id}_chunk_{index}`. Otherwise, it uses `chunk_{index}`.
+**Note:** The Indexer automatically assigns `chunk_id` to each chunk based on its position. The format is `{doc_id}_chunk_{index}` where `doc_id` comes from the doc_id parameter or 'default' if not provided.
 
 **Example:**
 ```python
 indexer = Indexer(embeddings, text_processor, vector_store)
 
-# Add document_id to metadata before indexing
-for doc in documents:
-    doc.metadata["document_id"] = "doc_1"
-
-# Index documents
-document_ids = indexer.index(documents)
+# Index a single text string
+indexer.index("This is some text to index", doc_id="doc_1")
 # Each chunk will have chunk_id like "doc_1_chunk_0", "doc_1_chunk_1", etc.
+
+# Index multiple texts with same doc_id
+indexer.index(["Text 1", "Text 2", "Text 3"], doc_id="doc_1")
+
+# Index multiple texts with different doc_ids
+indexer.index(
+    ["Text 1", "Text 2", "Text 3"],
+    doc_id=["doc_1", "doc_2", "doc_3"]
+)
 ```
 
 ---
@@ -420,26 +430,25 @@ embeddings = Embeddings(provider)
 # Step 2: Create text processor
 text_processor = TextProcessor(chunk_size=1000, chunk_overlap=200)
 
-# Step 3: Load documents
-documents = text_processor.load_file("./data/document.pdf", file_type="pdf")
-
-# Step 4: Add metadata
-for doc in documents:
-    doc.metadata["document_id"] = "doc_1"
-    doc.metadata["source"] = "document.pdf"
-
-# Step 5: Create vector store
+# Step 3: Create vector store
 vector_store = Chroma(
     collection_name="documents_collection",
     embedding_function=embeddings._provider,
     persist_directory="./chroma_db"
 )
 
-# Step 6: Create indexer and index
+# Step 4: Create indexer
 indexer = Indexer(embeddings, text_processor, vector_store)
-document_ids = indexer.index(documents)
 
-print(f"Indexed {len(document_ids)} chunks")
+# Step 5: Index text directly
+indexer.index("Your document text content here", doc_id="doc_1")
+
+# Or load from file and index
+documents = text_processor.load_file("./data/document.pdf", file_type="pdf")
+for i, doc in enumerate(documents):
+    indexer.index(doc.page_content, doc_id=f"doc_{i}")
+
+print("Documents indexed successfully")
 ```
 
 ### Using Different Embedding Providers
@@ -528,16 +537,20 @@ embeddings = Embeddings(provider)
 # Use this for both indexing and querying
 ```
 
-### 2. Set Document IDs Before Indexing
+### 2. Set Document IDs When Indexing
 
-Add `document_id` to metadata before indexing to enable proper chunk tracking.
+Provide `doc_id` parameter when indexing to enable proper chunk tracking.
 
 ```python
-for doc in documents:
-    doc.metadata["document_id"] = "unique_doc_id"
-    
+# Single text with doc_id
+indexer.index("Your text here", doc_id="unique_doc_id")
 # Indexer will create chunk_ids like "unique_doc_id_chunk_0"
-document_ids = indexer.index(documents)
+
+# Multiple texts with same doc_id
+indexer.index(["Text 1", "Text 2"], doc_id="unique_doc_id")
+
+# Multiple texts with different doc_ids
+indexer.index(["Text 1", "Text 2"], doc_id=["doc_1", "doc_2"])
 ```
 
 ### 3. Choose Appropriate Chunk Sizes

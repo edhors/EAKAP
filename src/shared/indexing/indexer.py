@@ -18,8 +18,8 @@ class Indexer:
     
     The Indexer coordinates the workflow by:
     1. Splitting documents into chunks using TextProcessor
-    2. Adding split documents to the vector store (which automatically creates embeddings)
-    3. Returning document IDs from the vector store
+    2. Assigning unique chunk IDs to each chunk
+    3. Adding split documents to the vector store (which automatically creates embeddings)
     """
     
     def __init__(
@@ -70,14 +70,14 @@ class Indexer:
         self._text_processor = text_processor
         self._vector_store = vector_store
     
-    def index(self, documents: List[Document]) -> List[str]:
+    def index(self, documents: List[Document]) -> None:
         """
         Process documents through the indexing pipeline and store them.
         
         The pipeline:
         1. Splits documents into chunks using TextProcessor
-        2. Adds split documents to the vector store (embeddings are created automatically)
-        3. Returns document IDs from the vector store
+        2. Assigns unique chunk IDs to each chunk
+        3. Adds split documents to the vector store (embeddings are created automatically)
         
         Args:
             documents: List of LangChain Document objects to index. Each document's
@@ -86,7 +86,7 @@ class Indexer:
                       provided, 'default' will be used.
         
         Returns:
-            List[str]: List of document IDs returned by the vector store
+            None
         
         Raises:
             ValueError: If documents list is empty or None
@@ -139,10 +139,7 @@ class Indexer:
             # Step 3: Add split documents to vector store
             # The vector store automatically creates embeddings using the embeddings function
             # it was initialized with
-            document_ids = self._vector_store.add_documents(split_documents)
-            
-            # Step 4: Return document IDs
-            return document_ids
+            self._vector_store.add_documents(split_documents)
             
         except Exception as e:
             raise RuntimeError(
