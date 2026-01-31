@@ -9,6 +9,7 @@ Shared utilities for interacting with [SpiceDB](https://authzed.com/) (Zanzibar-
 | `__init__.py` | Marks this directory as a Python package. |
 | `apply_schema.py` | One-off script to apply the user/doc/viewer schema to a SpiceDB instance. |
 | `write_relationships.py` | Module for writing doc–user viewer relationships to SpiceDB. |
+| `read_relationships.py` | Module for checking which doc_ids a user has view permission for. |
 
 ---
 
@@ -65,6 +66,49 @@ writer.write_relationships(
     ],
     client,
 )
+```
+
+---
+
+### `read_relationships.py`
+
+**Purpose:** Check which doc_ids from a candidate list the user has `view` permission for in SpiceDB. Used in RAG pipelines to filter retrieval results by user permissions.
+
+**Exports:**
+- **`PERMISSION_VIEW`** — Permission name (`"view"`); must match the schema in `apply_schema.SCHEMA`.
+- **`RelationshipReader`** — Class that checks viewer permissions for batches of doc_ids.
+
+**`RelationshipReader.get_allowed_doc_ids(user_id, candidates, client)`**
+- **`user_id`:** The user to check permissions for (string).
+- **`candidates`:** List of dicts from Full Retrieval with at least `doc_id`. Example: `[{"doc_id": "doc_1", "chunk_id": "...", "score": 0.85}, ...]`
+- **`client`:** SpiceDB client (e.g. `authzed.api.v1.InsecureClient`) with `CheckBulkPermissions`.
+- Extracts unique doc_ids, then uses **CheckBulkPermissions** (one batch call) to check `view` permission for each doc.
+- Returns list of doc_ids that the user is allowed to view (subset of unique doc_ids from candidates).
+- Returns empty list if no candidates or no permissions granted.
+
+**Example:**
+```python
+from authzed.api.v1 import InsecureClient
+from src.shared.spicedb_handler.read_relationships import RelationshipReader
+
+client = InsecureClient("localhost:50051", "test")
+reader = RelationshipReader()
+
+# Candidates from Full Retrieval
+candidates = [
+    {"doc_id": "doc_1", "chunk_id": "doc_1_chunk_0", "score": 0.85},
+    {"doc_id": "doc_2", "chunk_id": "doc_2_chunk_0", "score": 0.72},
+    {"doc_id": "doc_1", "chunk_id": "doc_1_chunk_1", "score": 0.68},  # duplicate doc_id
+]
+
+# Get allowed doc_ids for user
+allowed_doc_ids = reader.get_allowed_doc_ids("user-123", candidates, client)
+# Returns: ['doc_1'] (if user only has permission for doc_1)
+
+# Use with PolicyFilter
+from src.user.final_retrieval.policy_filter import PolicyFilter
+pf = PolicyFilter(top_k=5)
+chunk_ids = pf.filter(candidates, allowed_doc_ids)
 ```
 
 ---
