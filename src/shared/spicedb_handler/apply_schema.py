@@ -18,16 +18,14 @@ definition role {
 definition clearance {
   relation member: user
   relation higher_clearance: clearance
+  permission effective_member = member + higher_clearance->effective_member
 }
 
 definition document {
   relation viewer_dept: role
   relation viewer_project: role
   relation required_clearance: clearance
-  
-  permission view = viewer_dept->member
-                 & viewer_project->member
-                 & (required_clearance->member + required_clearance->higher_clearance->member)
+  permission view = viewer_dept->member & viewer_project->member & required_clearance->effective_member
 }
 """
 
