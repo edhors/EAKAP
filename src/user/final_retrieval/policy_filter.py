@@ -135,25 +135,25 @@ class PolicyFilter:
         candidates: list[dict],
     ) -> list[dict]:
         """
-        Sort candidates by score (descending) and select top K.
+        Sort candidates by score (ascending) and select top K.
         
         Args:
             candidates: Filtered list from policy_filter()
         
         Returns:
-            Top K candidates sorted by score (highest first)
+            Top K candidates sorted by score (lowest first)
         """
         # Edge case: empty candidates
         if not candidates:
             logger.info("sort_and_select_top_k: no candidates to sort")
             return []
         
-        # Sort by score descending (score is string, convert to float)
+        # Sort by score ascending (score is string, convert to float)
         try:
             sorted_candidates = sorted(
                 candidates,
                 key=lambda x: float(x.get('score', 0)),
-                reverse=True
+                reverse=False
             )
         except (ValueError, TypeError) as e:
             logger.error(f"sort_and_select_top_k: error converting score to float: {e}")
