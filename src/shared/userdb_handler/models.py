@@ -19,3 +19,17 @@ class RefreshToken(SQLModel, table=True):
     token: str = Field(index=True)
     expires_at: datetime
     revoked: bool = Field(default=False)
+
+
+class AuthorizationCode(SQLModel, table=True):
+    """Temporary authorization codes for OAuth 2.1 PKCE flow."""
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    code: str = Field(index=True, unique=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    client_id: str
+    redirect_uri: str
+    code_challenge: str
+    code_challenge_method: str = Field(default="S256")
+    expires_at: datetime
+    used: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
