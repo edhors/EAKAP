@@ -1,32 +1,58 @@
 from pwdlib import PasswordHash
-from jose import jwt
-import hashlib,base64,secrets
-from typing import Tuple
+from jose import jwt, JWTError
+import hashlib, base64, secrets
+from datetime import datetime, timedelta
+from typing import Tuple, Dict, Any
+from .config import settings
 
-#NOTE: secret algorithm and key in env are needed. Use pydantic and config to set them up later
-def get_password_hash(password:str)-> str:
+
+def get_password_hash(password: str) -> str:
+    """Hash password using pwdlib's recommended algorithm."""
     password_hash = PasswordHash.recommended()
-
     hash = password_hash.hash(password)
     return hash
-def verify_password(plain_password:str,hashed_password:str)->bool:
 
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify plain password against hashed password."""
     password_hash = PasswordHash.recommended()
-    verified = password_hash.verify(plain_password,hashed_password)
-
+    verified = password_hash.verify(plain_password, hashed_password)
     return verified
 
 
-def create_access_token(new_payload: dict):
-    token = jwt.encode(new_payload,key="sample key",algorithm='SHA256')
-    
-    return token
+def create_access_token(data: Dict[str, Any]) -> str:
+    """Create JWT access token with proper expiration."""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "type": "access",
+    })
+    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    return encoded_jwt
 
-#
-def creat_refresh_token(payload_with_jwt: dict):
-    token = jwt.encode(payload_with_jwt,key="sample key",algorithm='SHA256')
-    
-    return token
+
+def create_refresh_token(data: Dict[str, Any]) -> str:
+    """Create JWT refresh token with longer expiration."""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "type": "refresh",
+    })
+    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    return encoded_jwt
+
+
+def decode_token(token: str) -> Dict[str, Any]:
+    """Decode and verify JWT token."""
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        return payload
+    except JWTError as e:
+        raise ValueError(f"Invalid token: {str(e)}")
 
 
 #NOTE: Curtousy of RomeoDespres, as an initial pkce code
