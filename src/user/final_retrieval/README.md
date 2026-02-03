@@ -35,7 +35,7 @@ This module is part of the **EAKAP** (Enterprise AI Knowledge Assistant Platform
 │                                 ▼                                       │
 │    ┌─────────────────────────────────────────────────────────────┐     │
 │    │  Step 2: sort_and_select_top_k()                             │     │
-│    │  Sort by score (descending), select top K                    │     │
+│    │  Sort by score (ascending), select top K                      │     │
 │    └─────────────────────────────────────────────────────────────┘     │
 │                                 │                                       │
 │                                 ▼                                       │
@@ -118,7 +118,7 @@ chunk_ids = pf.filter(
     candidates=candidates,
     allowed_doc_ids=allowed_doc_ids
 )
-# Output: ['doc_1_chunk_2', 'doc_1_chunk_1']
+# Output: ['doc_1_chunk_1', 'doc_1_chunk_2']  # top K = lowest scores first
 
 # Step 4: Initialize FinalRetriever and retrieve from Chroma
 # The vector_store is now passed during initialization
@@ -148,7 +148,7 @@ retriever = FinalRetriever(vector_store) # vector_store is passed at init
 # Step 1: Filter by policy (ACL check)
 filtered = pf.policy_filter(candidates, allowed_doc_ids)
 
-# Step 2: Sort by score and select top K
+# Step 2: Sort by score (ascending) and select top K (lowest scores first)
 # Note: This now uses the top_k value provided during pf initialization
 selected = pf.sort_and_select_top_k(filtered)
 
@@ -188,16 +188,15 @@ result = policy_filter(candidates, allowed)
 
 ---
 
-#### `sort_and_select_top_k(candidates, top_k=2) -> list[dict]`
+#### `sort_and_select_top_k(candidates) -> list[dict]`
 
-Sorts candidates by score (descending) and selects top K.
+Sorts candidates by score (ascending) and selects top K. Uses `top_k` from instance (set at init).
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `candidates` | `list[dict]` | - | Filtered candidates from `policy_filter()` |
-| `top_k` | `int` | `2` | Number of top candidates to select |
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `candidates` | `list[dict]` | Filtered candidates from `policy_filter()` |
 
-**Returns:** Top K candidates sorted by score (highest first)
+**Returns:** Top K candidates sorted by score (lowest first)
 
 **Example:**
 ```python
@@ -207,9 +206,9 @@ candidates = [
     {'doc_id': 'doc_1', 'chunk_id': 'chunk_3', 'score': '0.8'},
 ]
 
-result = sort_and_select_top_k(candidates, top_k=2)
+result = pf.sort_and_select_top_k(candidates)  # top_k=2 from init
 # [
-#   {'doc_id': 'doc_1', 'chunk_id': 'chunk_2', 'score': '0.9'},
+#   {'doc_id': 'doc_1', 'chunk_id': 'chunk_1', 'score': '0.7'},
 #   {'doc_id': 'doc_1', 'chunk_id': 'chunk_3', 'score': '0.8'},
 # ]
 ```
@@ -229,12 +228,12 @@ Extracts chunk_ids from candidates list.
 **Example:**
 ```python
 candidates = [
-    {'doc_id': 'doc_1', 'chunk_id': 'chunk_2', 'score': '0.9'},
+    {'doc_id': 'doc_1', 'chunk_id': 'chunk_1', 'score': '0.7'},
     {'doc_id': 'doc_1', 'chunk_id': 'chunk_3', 'score': '0.8'},
 ]
 
 result = extract_chunk_ids(candidates)
-# ['chunk_2', 'chunk_3']
+# ['chunk_1', 'chunk_3']
 ```
 
 ---
