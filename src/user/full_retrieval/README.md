@@ -2,14 +2,14 @@
 
 ## Overview
 
-The `full_retrieval` module provides a similarity search functionality using pre-computed query embeddings against a ChromaDB vectorstore. Unlike traditional retrieval systems that accept text queries, this module works directly with embedding vectors, making it suitable for scenarios where embeddings are computed separately or reused across multiple queries.
+The `full_retrieval` module provides a distance-based search functionality using pre-computed query embeddings against a ChromaDB vectorstore. Unlike traditional retrieval systems that accept text queries, this module works directly with embedding vectors, making it suitable for scenarios where embeddings are computed separately or reused across multiple queries.
 
 ## Purpose
 
 This module is designed to:
-- Perform similarity search using pre-computed query embeddings (not text)
-- Filter results by a configurable similarity threshold
-- Return structured results with document IDs, chunk IDs, and similarity scores
+- Perform distance-based search using pre-computed query embeddings (not text)
+- Filter results by a configurable maximum distance threshold
+- Return structured results with document IDs, chunk IDs, and distances (lower = more similar)
 - Support both path-based and dependency injection initialization patterns
 
 ## Architecture
@@ -75,7 +75,7 @@ retriever = FullRetrieval(vector_store=vector_store)
 
 ### Method: search()
 
-Performs similarity search using pre-computed query embeddings.
+Performs distance-based search using pre-computed query embeddings.
 
 #### Signature
 
@@ -83,7 +83,7 @@ Performs similarity search using pre-computed query embeddings.
 def search(
     self,
     query_embeddings: List[float],
-    threshold: float = 0.5,
+    threshold: float = 1.0,
     k: Optional[int] = None
 ) -> List[Dict[str, Any]]
 ```
@@ -92,13 +92,12 @@ def search(
 
 - **query_embeddings** (List[float], required): 
   - List of float values representing the query embedding vector
-  - Must be non-empty and contain only finite numeric values
   - Dimension must match the embedding dimension used during indexing
 
-- **threshold** (float, optional, default=0.5):
-  - Minimum similarity score (0-1) to include in results
-  - Results with similarity scores below this threshold are filtered out
-  - Range: 0.0 to 1.0 (inclusive)
+- **threshold** (float, optional, default=1.0):
+  - Maximum distance to include in results
+  - Results with distances above this threshold are filtered out
+  - Typically ranges from 0 to 2 for cosine distance (can be larger)
 
 - **k** (int, optional, default=None):
   - Maximum number of candidate results to retrieve before threshold filtering
@@ -110,13 +109,13 @@ def search(
 List of dictionaries, each containing:
 - `doc_id` (str): Document identifier (shared by all chunks from the same document)
 - `chunk_id` (str): Unique chunk identifier
-- `score` (float): Similarity score (0.0 to 1.0, higher is more similar)
+- `score` (float): Distance (lower values = more similar)
 
 **Format:**
 ```python
 [
-    {"doc_id": "doc_1", "chunk_id": "doc_1_chunk_0", "score": 0.85},
-    {"doc_id": "doc_1", "chunk_id": "doc_1_chunk_1", "score": 0.72},
+    {"doc_id": "doc_1", "chunk_id": "doc_1_chunk_0", "score": 0.15},
+    {"doc_id": "doc_1", "chunk_id": "doc_1_chunk_1", "score": 0.28},
     ...
 ]
 ```
@@ -137,29 +136,29 @@ query_embeddings = embeddings.embed_query(query_text)
 # Perform search
 results = retriever.search(
     query_embeddings=query_embeddings,
-    threshold=0.6,
+    threshold=1.0,
     k=10
 )
 
 # Process results
 for result in results:
-    print(f"Document: {result['doc_id']}, Chunk: {result['chunk_id']}, Score: {result['score']:.4f}")
+    print(f"Document: {result['doc_id']}, Chunk: {result['chunk_id']}, Distance: {result['score']:.4f}")
 ```
 
 ## Implementation Details
 
-### Similarity Score Calculation
+### Distance-Based Scoring
 
-The module converts ChromaDB distance values to similarity scores:
+The module returns ChromaDB distance values directly:
 
-1. **Distance to Similarity Conversion**: 
+1. **Distance Values**: 
    - ChromaDB returns cosine distances (0 = identical, 2 = opposite)
-   - Similarity score = `1 - distance`
-   - Scores are clamped to [0, 1] range
+   - Lower distance = more similar
+   - No conversion applied
 
 2. **Threshold Filtering**:
-   - Only results with `similarity_score >= threshold` are included
-   - Results are returned in descending order of similarity (most similar first)
+   - Only results with `distance <= threshold` are included
+   - Results are returned in ascending order of distance (most similar first)
 
 ### Metadata Extraction
 
@@ -171,30 +170,20 @@ The module extracts `doc_id` and `chunk_id` from ChromaDB metadata:
 
 ### Error Handling
 
-The module includes comprehensive error handling:
+The module uses minimal error handling:
 
-#### Input Validation
-- Validates query embeddings are non-empty lists
-- Checks for NaN and Infinity values
-- Validates threshold is between 0 and 1
-- Validates k is a positive integer if provided
+#### Basic Validation
+- Returns empty list if query_embeddings is empty
+- Skips results with NaN or Infinity distances
 
 #### ChromaDB Errors
-- Handles missing or inaccessible collections
-- Validates query result structure
-- Handles dimension mismatches
-- Provides descriptive error messages
-
-#### Runtime Errors
-- Validates collection initialization
-- Handles metadata extraction failures
-- Skips invalid results (NaN/Infinity distances) instead of failing
-- Provides context in error messages
+- ChromaDB errors propagate naturally (dimension mismatches, connection errors, etc.)
+- Caller is responsible for handling exceptions
 
 ### Performance Considerations
 
 1. **k Parameter**: Use `k` to limit candidates when you only need top results
-2. **Threshold**: Higher thresholds reduce result processing time
+2. **Threshold**: Lower thresholds reduce result processing time
 3. **Empty Collections**: Returns empty list immediately if collection is empty
 4. **Batch Processing**: Processes results sequentially but efficiently
 
@@ -220,24 +209,22 @@ The module expects chunks stored in ChromaDB with the following metadata structu
 
 Common errors and their meanings:
 
-- **"query_embeddings must be a non-empty list"**: Provide a valid embedding vector
-- **"threshold must be between 0 and 1"**: Adjust threshold to valid range
-- **"ChromaDB persistence directory not found"**: Check persist_directory path
-- **"Invalid query embeddings format or dimension mismatch"**: Ensure embedding dimension matches collection
-- **"ChromaDB collection is None"**: Collection may not exist or initialization failed
+- ChromaDB dimension mismatch errors: Ensure embedding dimension matches collection
+- ChromaDB connection errors: Check persist_directory path and collection name
+- AttributeError on collection access: Collection may not exist or initialization failed
 
 ## Best Practices
 
 1. **Embedding Consistency**: Use the same embedding model/function that was used during indexing
-2. **Threshold Tuning**: Start with 0.5 and adjust based on result quality
+2. **Threshold Tuning**: Start with 1.0 and adjust based on result quality (lower = stricter, higher = more permissive)
 3. **k Parameter**: Use `k` when you only need top-N results for better performance
-4. **Error Handling**: Wrap search calls in try-except blocks for production code
+4. **Error Handling**: Wrap search calls in try-except blocks for production code to catch ChromaDB errors
 5. **Metadata Validation**: Ensure your indexed chunks have proper `doc_id` and `chunk_id` metadata
 
 ## Limitations
 
 1. **Single Query**: Currently processes one query embedding at a time
-2. **Cosine Similarity**: Assumes cosine distance metric (may need adjustment for other metrics)
+2. **Distance Metric**: Returns raw distance values from ChromaDB (typically cosine distance)
 3. **Metadata Dependency**: Relies on proper metadata structure in ChromaDB
 4. **No Text Input**: Does not accept text queries directly (embeddings must be pre-computed)
 
