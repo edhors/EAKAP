@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from pydantic import EmailStr
 from sqlmodel import Field, SQLModel, Column, String
-
+from .types import UserAttributes
 
 class User(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
@@ -11,6 +11,7 @@ class User(SQLModel, table=True):
     hashed_password: str
     tenant_id: str = Field(index=True)
     is_active: bool = Field(default=True)
+    attribues: UserAttributes = Field()
 
 
 class RefreshToken(SQLModel, table=True):
