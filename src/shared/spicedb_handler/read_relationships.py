@@ -1,4 +1,4 @@
-"""Read doc-user viewer relationships from SpiceDB."""
+"""Read document-user permissions from SpiceDB."""
 
 from typing import Any, Dict, List
 
@@ -17,7 +17,7 @@ PERMISSION_VIEW = "view"
 
 
 class RelationshipReader:
-    """Reads doc-user viewer relationships from SpiceDB."""
+    """Reads document permissions from SpiceDB."""
 
     def get_allowed_doc_ids(
         self,
@@ -27,17 +27,20 @@ class RelationshipReader:
     ) -> List[str]:
         """Get list of doc_ids from candidates that user has view permission for.
 
-        Extracts unique doc_ids from candidates and checks SpiceDB to see which ones
+        Extracts unique doc_ids (document IDs) from candidates and checks SpiceDB to see which ones
         the user is allowed to view. Uses CheckBulkPermissions for efficiency.
+        
+        The view permission is computed by SpiceDB based on role membership (viewer_dept, viewer_project)
+        and clearance level (required_clearance or higher).
 
         Args:
             user_id: The user to check permissions for.
-            candidates: List of dicts from Full Retrieval with at least doc_id.
+            candidates: List of dicts from Full Retrieval with at least doc_id (document ID).
                        Example: [{"doc_id": "doc_1", "chunk_id": "...", "score": 0.85}, ...]
             client: SpiceDB client (e.g. InsecureClient) with CheckBulkPermissions.
 
         Returns:
-            List of doc_ids that user is allowed to view (subset of unique doc_ids from candidates).
+            List of doc_ids (document IDs) that user is allowed to view (subset of unique doc_ids from candidates).
             Returns empty list if no candidates or no permissions.
 
         Example:
@@ -95,14 +98,14 @@ class RelationshipReader:
         return allowed_doc_ids
 
     def _extract_doc_ids(self, candidates: List[Dict[str, Any]]) -> List[str]:
-        """Extract unique doc_ids from candidates in order of first occurrence.
+        """Extract unique doc_ids (document IDs) from candidates in order of first occurrence.
 
         Args:
-            candidates: List of dicts from Full Retrieval with at least doc_id.
+            candidates: List of dicts from Full Retrieval with at least doc_id (document ID).
                        Example: [{"doc_id": "doc_1", "chunk_id": "...", "score": 0.85}, ...]
 
         Returns:
-            List of unique doc_ids (preserves order of first occurrence).
+            List of unique doc_ids (document IDs) (preserves order of first occurrence).
             Items without doc_id are skipped.
         """
         seen = set()
