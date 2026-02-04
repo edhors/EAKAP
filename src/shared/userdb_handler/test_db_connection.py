@@ -1,9 +1,10 @@
-import database
+from .database import get_session,init_db
 
-database.init_db()
+def test_db_connection():
 
-sessionGroup = database.get_session()
+        init_db()
 
-session = next(sessionGroup)
+        sessionGroup = get_session()
 
-
+        session = next(sessionGroup)
+        assert type(session).__name__ == "Session"

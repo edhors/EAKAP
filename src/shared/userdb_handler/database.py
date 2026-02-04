@@ -1,6 +1,6 @@
 from typing import Generator
 from sqlmodel import Session, create_engine, SQLModel
-from config import settings
+from .config import settings
 
 engine = create_engine(
     f"sqlite+{settings.database_url}?secure=true",
