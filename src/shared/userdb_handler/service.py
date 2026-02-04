@@ -10,9 +10,9 @@ class UserService:
     def __init__(self, session: Session):
         self._session = session
 
-    def create_user(self, email: str, hashed_password: str, tenant_id: str) -> User:
+    def create_user(self, email: str, hashed_password: str, tenant_id: str, dept:str, project:str, clearance:int) -> User:
         """Create a new user."""
-        user = User(email=email, hashed_password=hashed_password, tenant_id=tenant_id)
+        user = User(email=email, hashed_password=hashed_password, tenant_id=tenant_id, dept=dept,project=project,clearance=clearance)
         self._session.add(user)
         self._session.commit()
         self._session.refresh(user)
@@ -31,6 +31,11 @@ class UserService:
         """Get all users for a tenant."""
         statement = select(User).where(User.tenant_id == tenant_id)
         return list(self._session.exec(statement).all())
+    def get_user_by_project(self, project: str) -> Optional[User]:
+        """Get user by project."""
+        statement = select(User).where(User.project == project)
+        return self._session.exec(statement).first()
+
 
     def update_user(self, user_id: str, **kwargs) -> Optional[User]:
         """Update user fields."""

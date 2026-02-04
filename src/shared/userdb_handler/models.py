@@ -10,6 +10,11 @@ class User(SQLModel, table=True):
     hashed_password: str
     tenant_id: str = Field(index=True)
     is_active: bool = Field(default=True)
+    dept: str= Field()
+
+    project: str= Field()
+
+    clearance: int = Field()
 
 
 class RefreshToken(SQLModel, table=True):
