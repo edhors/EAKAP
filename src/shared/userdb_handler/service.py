@@ -31,10 +31,11 @@ class UserService:
         """Get all users for a tenant."""
         statement = select(User).where(User.tenant_id == tenant_id)
         return list(self._session.exec(statement).all())
-    def get_user_by_project(self, project: str) -> Optional[User]:
-        """Get user by project."""
+
+    def get_users_by_project(self, project: str) -> List[User]:
+        """Get all users for a project."""
         statement = select(User).where(User.project == project)
-        return self._session.exec(statement).first()
+        return list(self._session.exec(statement).all())
 
 
     def update_user(self, user_id: str, **kwargs) -> Optional[User]:
