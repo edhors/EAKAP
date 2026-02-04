@@ -1,15 +1,10 @@
 from typing import Generator
 from sqlmodel import Session, create_engine, SQLModel
-from .config import settings
 
 
 engine = create_engine(
-    "sqlite+libsql:///embedded.db",
-    connect_args={
-        "auth_token": settings.auth_token,
-        "sync_url": settings.database_url,
-    },
-)
+    "sqlite:///embedded.db",
+   )
 
 
 def init_db() -> None:
