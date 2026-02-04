@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 from sqlmodel import Session, select
 from .models import User, RefreshToken
-
+from .schemas import UserCreate, UserUpdate, RefreshTokenCreate
 
 class UserService:
     """Service for user CRUD operations."""
@@ -10,9 +10,17 @@ class UserService:
     def __init__(self, session: Session):
         self._session = session
 
-    def create_user(self, email: str, hashed_password: str, tenant_id: str, dept:str, project:str, clearance:int) -> User:
+    def create_user(self, email: str, hashed_password: str, tenant_id: str, dept: str, project: str, clearance: int) -> User:
         """Create a new user."""
-        user = User(email=email, hashed_password=hashed_password, tenant_id=tenant_id, dept=dept,project=project,clearance=clearance)
+        validated_data = UserCreate(
+            email=email,
+            hashed_password=hashed_password,
+            tenant_id=tenant_id,
+            dept=dept,
+            project=project,
+            clearance=clearance
+        )
+        user = User(**validated_data.model_dump())
         self._session.add(user)
         self._session.commit()
         self._session.refresh(user)
@@ -43,7 +51,8 @@ class UserService:
         user = self.get_user_by_id(user_id)
         if not user:
             return None
-        for key, value in kwargs.items():
+        validated_data = UserUpdate(**kwargs)
+        for key, value in validated_data.model_dump(exclude_unset=True).items():
             if hasattr(user, key):
                 setattr(user, key, value)
         self._session.add(user)
@@ -69,11 +78,12 @@ class TokenService:
 
     def create_token(self, user_id: str, token: str, expires_at: datetime) -> RefreshToken:
         """Create a new refresh token."""
-        refresh_token = RefreshToken(user_id=user_id, token=token, expires_at=expires_at)
-        self._session.add(refresh_token)
+        refresh_token = RefreshTokenCreate(user_id=user_id, token=token, expires_at=expires_at)
+        valid_refresh_token = RefreshToken(**refresh_token.model_dump())
+        self._session.add(valid_refresh_token)
         self._session.commit()
-        self._session.refresh(refresh_token)
-        return refresh_token
+        self._session.refresh(valid_refresh_token)
+        return valid_refresh_token
 
     def get_token(self, token: str) -> Optional[RefreshToken]:
         """Get refresh token by token string."""
