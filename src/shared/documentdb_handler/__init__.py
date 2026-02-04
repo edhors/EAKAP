@@ -1,16 +1,13 @@
-from .models import User, RefreshToken, AuthorizationCode
+from .models import Document
 from .config import settings
 from .database import engine, get_session, init_db
-from .service import UserService, TokenService
+from .service import DocumentService
 
 __all__ = [
-    "User",
-    "RefreshToken",
-    "AuthorizationCode",
+    "Document",
     "settings",
     "engine",
     "get_session",
     "init_db",
-    "UserService",
-    "TokenService",
+    "DocumentService",
 ]
