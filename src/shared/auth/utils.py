@@ -23,10 +23,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(data: Dict[str, Any]) -> str:
     """Create JWT access token with proper expiration."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
+    expire = datetime.now() + timedelta(minutes=settings.access_token_expire_minutes)
     to_encode.update({
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": datetime.now(),
         "type": "access",
     })
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
@@ -36,10 +36,10 @@ def create_access_token(data: Dict[str, Any]) -> str:
 def create_refresh_token(data: Dict[str, Any]) -> str:
     """Create JWT refresh token with longer expiration."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
+    expire = datetime.now() + timedelta(days=settings.refresh_token_expire_days)
     to_encode.update({
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": datetime.now(),
         "type": "refresh",
     })
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)

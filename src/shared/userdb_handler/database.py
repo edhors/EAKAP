@@ -2,15 +2,12 @@ from typing import Generator
 from sqlmodel import Session, create_engine, SQLModel
 from .config import settings
 
-
 engine = create_engine(
-    "sqlite+libsql:///embedded.db",
+    f"sqlite+{settings.database_url}?secure=true",
     connect_args={
         "auth_token": settings.auth_token,
-        "sync_url": settings.database_url,
     },
 )
-
 
 def init_db() -> None:
     """Create all tables in the database."""
