@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 from sqlmodel import Session, select
-from .models import User, RefreshToken
+from models import User, RefreshToken
 
 
 class UserService:
