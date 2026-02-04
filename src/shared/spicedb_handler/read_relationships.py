@@ -91,7 +91,7 @@ class RelationshipReader:
             # Check if permission is granted
             if (
                 pair.item.permissionship
-                == CheckPermissionResponse.Permissionships.PERMISSIONSHIP_HAS_PERMISSION
+                == CheckPermissionResponse.Permissionship.PERMISSIONSHIP_HAS_PERMISSION
             ):
                 allowed_doc_ids.append(doc_ids[i])
 
