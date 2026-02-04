@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 from sqlmodel import Session, select
 from .models import User, RefreshToken
-
+from .schemas import UserCreate, UserUpdate
 
 class UserService:
     """Service for user CRUD operations."""
@@ -10,9 +10,17 @@ class UserService:
     def __init__(self, session: Session):
         self._session = session
 
-    def create_user(self, email: str, hashed_password: str, tenant_id: str, dept:str, project:str, clearance:int) -> User:
+    def create_user(self, email: str, hashed_password: str, tenant_id: str, dept: str, project: str, clearance: int) -> User:
         """Create a new user."""
-        user = User(email=email, hashed_password=hashed_password, tenant_id=tenant_id, dept=dept,project=project,clearance=clearance)
+        validated_data = UserCreate(
+            email=email,
+            hashed_password=hashed_password,
+            tenant_id=tenant_id,
+            dept=dept,
+            project=project,
+            clearance=clearance
+        )
+        user = User(**validated_data.model_dump())
         self._session.add(user)
         self._session.commit()
         self._session.refresh(user)
@@ -43,7 +51,9 @@ class UserService:
         user = self.get_user_by_id(user_id)
         if not user:
             return None
-        for key, value in kwargs.items():
+        # Validate update data with Pydantic schema
+        validated_data = UserUpdate(**kwargs)
+        for key, value in validated_data.model_dump(exclude_unset=True).items():
             if hasattr(user, key):
                 setattr(user, key, value)
         self._session.add(user)
