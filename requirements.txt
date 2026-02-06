@@ -20,3 +20,4 @@ sqlmodel==0.0.31
 slowapi==0.1.9
 pytest==9.0.2
 pydantic==2.12.5
+authzed==1.24.1
