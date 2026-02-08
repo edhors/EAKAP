@@ -1,7 +1,8 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlmodel import Session
 
+from .exceptions import InactiveUserError, InvalidTokenError, UserNotFoundError
 from .service import AuthService
 from src.shared.userdb_handler import get_session, User
 
@@ -23,19 +24,11 @@ async def get_current_user(
     payload = auth_service.verify_access_token(token)
 
     if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise InvalidTokenError()
 
     user = auth_service.get_current_user(payload)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise UserNotFoundError()
 
     return user
 
@@ -45,8 +38,5 @@ async def get_current_active_user(
 ) -> User:
     """Dependency to ensure user is active."""
     if not current_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive",
-        )
+        raise InactiveUserError()
     return current_user
