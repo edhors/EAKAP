@@ -3,29 +3,12 @@ from fastapi import APIRouter, Depends, FastAPI, Query, status
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
-from .config import settings
-from .exceptions import (
-    AuthError,
-    InvalidClientError,
-    InvalidCredentialsError,
-    InvalidGrantError,
-    InvalidTokenError,
-    MissingGrantFieldsError,
-    UnsupportedGrantTypeError,
-    UserConflictError,
-)
-from .service import AuthService
-from .schemas import (
-    UserRegister,
-    UserResponse,
-    UserLogin,
-    AuthorizeResponse,
-    TokenRequest,
-    TokenResponse,
-    TokenRevokeRequest,
-)
-from .dependencies import get_auth_service, get_current_active_user
-from src.shared.userdb_handler import User
+import sys
+from pathlib import Path
+# Add parent of src to sys.path so src can be imported as a module
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src import *
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -43,6 +26,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         register_exception_handlers(app)
     """
 
+    #FIX: Not used at the moment
     @app.exception_handler(AuthError)
     async def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
         headers = (
@@ -72,30 +56,31 @@ async def register(
     )
 
 
-@router.post("/login", response_model=AuthorizeResponse)
+@router.post("/login", response_model=AuthorizeResponse, status_code=status.HTTP_200_OK)
 async def login(
     data: UserLogin,
-    client_id: str = Query(...),
-    redirect_uri: str = Query(...),
-    code_challenge: str = Query(...),
-    code_challenge_method: str = Query(default="S256"),
-    state: Optional[str] = Query(default=None),
+    AuthReq: AuthorizeRequest = Query(...),
+    # client_id: str = Query(...),
+    # redirect_uri: str = Query(...),
+    # code_challenge: str = Query(...),
+    # code_challenge_method: str = Query(default="S256"),
+    # state: Optional[str] = Query(default=None),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """Authenticate user and return authorization code for OAuth PKCE flow."""
-    _validate_client_id(client_id)
+    _validate_client_id(AuthReq.client_id)
 
     user = auth_service.authenticate_user(data.email, data.password)
 
     code = auth_service.create_authorization_code(
         user_id=user.id,
-        client_id=client_id,
-        redirect_uri=redirect_uri,
-        code_challenge=code_challenge,
-        code_challenge_method=code_challenge_method,
+        client_id=AuthReq.client_id,
+        redirect_uri=AuthReq.redirect_uri,
+        code_challenge=AuthReq.code_challenge,
+        code_challenge_method=AuthReq.code_challenge_method,
     )
 
-    return AuthorizeResponse(code=code, state=state)
+    return AuthorizeResponse(code=code, state=AuthReq.state)
 
 
 @router.post("/token", response_model=TokenResponse)
