@@ -4,7 +4,14 @@ import secrets
 from sqlmodel import Session, select
 
 from .config import settings
-from .schemas import UserRegister, TokenPayload
+from .exceptions import (
+    InvalidCredentialsError,
+    InvalidGrantError,
+    MissingGrantFieldsError,
+    UnsupportedGrantTypeError,
+    UserConflictError,
+)
+from .schemas import UserRegister, TokenPayload, TokenRequest
 from .utils import (
     get_password_hash,
     verify_password,
@@ -35,24 +42,25 @@ class AuthService:
         """Register a new user."""
         existing = self._user_service.get_user_by_email(data.email)
         if existing:
-            raise ValueError("User with this email already exists")
+            raise UserConflictError()
 
         hashed_password = get_password_hash(data.password)
         return self._user_service.create_user(
             email=data.email,
             hashed_password=hashed_password,
             tenant_id=data.tenant_id,
+            dept=data.dept,
+            project=data.project,
+            clearance=data.clearance,
         )
 
-    def authenticate_user(self, email: str, password: str) -> Optional[User]:
+    def authenticate_user(self, email: str, password: str) -> User:
         """Authenticate user credentials."""
         user = self._user_service.get_user_by_email(email)
-        if not user:
-            return None
-        if not verify_password(password, user.hashed_password):
-            return None
+        if not user or not verify_password(password, user.hashed_password):
+            raise InvalidCredentialsError()
         if not user.is_active:
-            return None
+            raise InvalidCredentialsError()
         return user
 
     # OAuth 2.1 Authorization Code Flow
@@ -88,7 +96,7 @@ class AuthService:
         code: str,
         code_verifier: str,
         client_id: str,
-    ) -> Optional[User]:
+    ) -> User:
         """Verify authorization code and PKCE challenge."""
         statement = select(AuthorizationCode).where(
             AuthorizationCode.code == code,
@@ -98,16 +106,16 @@ class AuthService:
         auth_code = self._session.exec(statement).first()
 
         if not auth_code:
-            return None
+            raise InvalidGrantError("Invalid or expired authorization code")
 
         # Check expiration
         if datetime.utcnow() > auth_code.expires_at:
-            return None
+            raise InvalidGrantError("Invalid or expired authorization code")
 
         # Verify PKCE challenge
         computed_challenge = get_code_challenge(code_verifier)
         if computed_challenge != auth_code.code_challenge:
-            return None
+            raise InvalidGrantError("Invalid or expired authorization code")
 
         # Mark as used
         auth_code.used = True
@@ -115,7 +123,10 @@ class AuthService:
         self._session.commit()
 
         # Return user
-        return self._user_service.get_user_by_id(auth_code.user_id)
+        user = self._user_service.get_user_by_id(auth_code.user_id)
+        if not user:
+            raise InvalidGrantError("User associated with code no longer exists")
+        return user
 
     # JWT Token Operations
     def create_tokens(self, user: User) -> Tuple[str, str]:
@@ -139,30 +150,30 @@ class AuthService:
 
         return access_token, refresh_token_str
 
-    def refresh_access_token(self, refresh_token: str) -> Optional[Tuple[str, str]]:
+    def refresh_access_token(self, refresh_token: str) -> Tuple[str, str]:
         """Generate new access token from refresh token."""
         # Verify token exists and not revoked in DB
         db_token = self._token_service.get_token(refresh_token)
         if not db_token:
-            return None
+            raise InvalidGrantError("Invalid or expired refresh token")
 
         # Check expiration
         if datetime.utcnow() > db_token.expires_at:
-            return None
+            raise InvalidGrantError("Invalid or expired refresh token")
 
         # Decode and verify JWT
         try:
             payload = decode_token(refresh_token)
         except ValueError:
-            return None
+            raise InvalidGrantError("Invalid or expired refresh token")
 
         if payload.get("type") != "refresh":
-            return None
+            raise InvalidGrantError("Invalid or expired refresh token")
 
         # Get user
         user = self._user_service.get_user_by_id(payload["sub"])
         if not user or not user.is_active:
-            return None
+            raise InvalidGrantError("Invalid or expired refresh token")
 
         # Revoke old token and create new pair
         self._token_service.revoke_token(refresh_token)
@@ -171,6 +182,43 @@ class AuthService:
     def revoke_refresh_token(self, token: str) -> bool:
         """Revoke refresh token."""
         return self._token_service.revoke_token(token)
+
+    # Grant-type strategy dispatch
+    def exchange_token(self, data: TokenRequest) -> Tuple[str, str]:
+        """Dispatch token exchange to the appropriate grant-type handler."""
+        grant_handlers = {
+            "authorization_code": self._handle_authorization_code_grant,
+            "refresh_token": self._handle_refresh_token_grant,
+        }
+
+        handler = grant_handlers.get(data.grant_type)
+        if handler is None:
+            raise UnsupportedGrantTypeError()
+
+        return handler(data)
+
+    def _handle_authorization_code_grant(self, data: TokenRequest) -> Tuple[str, str]:
+        """Handle the authorization_code grant type."""
+        if not data.code or not data.code_verifier:
+            raise MissingGrantFieldsError(
+                "code and code_verifier required for authorization_code grant",
+            )
+
+        user = self.verify_authorization_code(
+            code=data.code,
+            code_verifier=data.code_verifier,
+            client_id=data.client_id,
+        )
+        return self.create_tokens(user)
+
+    def _handle_refresh_token_grant(self, data: TokenRequest) -> Tuple[str, str]:
+        """Handle the refresh_token grant type."""
+        if not data.refresh_token:
+            raise MissingGrantFieldsError(
+                "refresh_token required for refresh_token grant",
+            )
+
+        return self.refresh_access_token(data.refresh_token)
 
     def verify_access_token(self, token: str) -> Optional[TokenPayload]:
         """Verify and decode access token."""
