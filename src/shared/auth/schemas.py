@@ -7,7 +7,9 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
     tenant_id: str
-
+    dept: str
+    project: str
+    clearance: int
 
 class UserResponse(BaseModel):
     id: str

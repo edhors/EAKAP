@@ -49,6 +49,9 @@ class AuthService:
             email=data.email,
             hashed_password=hashed_password,
             tenant_id=data.tenant_id,
+            dept=data.dept,
+            project=data.project,
+            clearance=data.clearance,
         )
 
     def authenticate_user(self, email: str, password: str) -> User:
