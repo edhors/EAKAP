@@ -3,29 +3,12 @@ from fastapi import APIRouter, Depends, FastAPI, Query, status
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
-from .config import settings
-from .exceptions import (
-    AuthError,
-    InvalidClientError,
-    InvalidCredentialsError,
-    InvalidGrantError,
-    InvalidTokenError,
-    MissingGrantFieldsError,
-    UnsupportedGrantTypeError,
-    UserConflictError,
-)
-from .service import AuthService
-from .schemas import (
-    UserRegister,
-    UserResponse,
-    UserLogin,
-    AuthorizeResponse,
-    TokenRequest,
-    TokenResponse,
-    TokenRevokeRequest,
-)
-from .dependencies import get_auth_service, get_current_active_user
-from src.shared.userdb_handler import User
+import sys
+from pathlib import Path
+# Add parent of src to sys.path so src can be imported as a module
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src import *
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -43,6 +26,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         register_exception_handlers(app)
     """
 
+    #FIX: Not used at the moment
     @app.exception_handler(AuthError)
     async def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
         headers = (
