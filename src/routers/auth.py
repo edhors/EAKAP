@@ -56,30 +56,31 @@ async def register(
     )
 
 
-@router.post("/login", response_model=AuthorizeResponse)
+@router.post("/login", response_model=AuthorizeResponse, status_code=status.HTTP_200_OK)
 async def login(
     data: UserLogin,
-    client_id: str = Query(...),
-    redirect_uri: str = Query(...),
-    code_challenge: str = Query(...),
-    code_challenge_method: str = Query(default="S256"),
-    state: Optional[str] = Query(default=None),
+    AuthReq: AuthorizeRequest = Query(...),
+    # client_id: str = Query(...),
+    # redirect_uri: str = Query(...),
+    # code_challenge: str = Query(...),
+    # code_challenge_method: str = Query(default="S256"),
+    # state: Optional[str] = Query(default=None),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """Authenticate user and return authorization code for OAuth PKCE flow."""
-    _validate_client_id(client_id)
+    _validate_client_id(AuthReq.client_id)
 
     user = auth_service.authenticate_user(data.email, data.password)
 
     code = auth_service.create_authorization_code(
         user_id=user.id,
-        client_id=client_id,
-        redirect_uri=redirect_uri,
-        code_challenge=code_challenge,
-        code_challenge_method=code_challenge_method,
+        client_id=AuthReq.client_id,
+        redirect_uri=AuthReq.redirect_uri,
+        code_challenge=AuthReq.code_challenge,
+        code_challenge_method=AuthReq.code_challenge_method,
     )
 
-    return AuthorizeResponse(code=code, state=state)
+    return AuthorizeResponse(code=code, state=AuthReq.state)
 
 
 @router.post("/token", response_model=TokenResponse)
