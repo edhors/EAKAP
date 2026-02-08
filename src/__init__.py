@@ -12,7 +12,9 @@ AuthService = service.AuthService
 UserRegister = schemas.UserRegister
 UserResponse = schemas.UserResponse
 UserLogin = schemas.UserLogin
-AuthorizeResponse = schemas. AuthorizeRequest
+
+AuthorizeResponse = schemas.AuthorizeResponse
+AuthorizeRequest = schemas.AuthorizeRequest
 TokenRequest = schemas.TokenRequest
 TokenResponse = schemas. TokenResponse
 TokenRevokeRequest = schemas.TokenRevokeRequest
@@ -31,6 +33,7 @@ __all__ = [
 "UserResponse",
 "UserLogin",
 "AuthorizeResponse",
+"AuthorizeRequest",
 "TokenRequest",
 "TokenResponse",
 "TokenRevokeRequest",
