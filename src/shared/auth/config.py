@@ -1,5 +1,8 @@
+from dotenv import find_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+env_path = find_dotenv()
 
 
 class Settings(BaseSettings):
@@ -17,7 +20,7 @@ class Settings(BaseSettings):
     oauth_redirect_uri: str = Field(validation_alias="oauth_redirect_uri")
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=env_path,
         env_file_encoding="utf-8",
         env_prefix="auth_",
         extra="ignore",
