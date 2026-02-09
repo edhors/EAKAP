@@ -6,7 +6,10 @@ from pydantic import BaseModel
 from typing import List, Optional
 from google import genai
 from google.genai import types
+import asyncio
 
+from dotenv import load_dotenv
+load_dotenv()
 
 project_root = os.path.abspath(os.path.join(os.getcwd(), "..", "..", ".."))
 if project_root not in sys.path:
@@ -16,11 +19,13 @@ if project_root not in sys.path:
 # This looks at src/user/chat/__init__.py
 from src.user.chat import (
     InsecureClient,
-    embed_query,
-    search,
-    get_allowed_doc_ids,
-    filter_candidates,
-    retrieve_chunks
+    embeddings,
+    embeddings_provider,
+    full_retrieval,
+    spice_client,
+    relationship_reader,
+    policy_filter,
+    final_retriever
 )
 
 app = FastAPI()
@@ -32,7 +37,7 @@ class QueryRequest(BaseModel):
     top_k: int = 2
 
 def generate_rag_response(context, user_query):
-    client = genai.Client(api_key=os.environ.get("GEMINI_KEY"))
+    client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
     prompt = f"""
     You are the EAKAP AI Assistant. Use the following context to answer the user's question.
     If the context doesn't contain the answer, say you don't have the answer to that question.
@@ -44,36 +49,36 @@ def generate_rag_response(context, user_query):
     
     # Generate content using the specified Gemini model
     response = client.models.generate_content(
-        model="gemini-2.0-flash-lite", # Adjusted to current stable version
+        model="gemini-2.5-flash-lite", # Adjusted to current stable version
         contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.3, # Low temperature for factual RAG tasks
-            max_output_tokens=1000
+            max_output_tokens=10000
         )
     )
     return response
 
 
 @app.post("/chat/ask")
-async def chat_endpoint(request: QueryRequest):
+def chat_endpoint(request: QueryRequest):
     try:
         # Step 1: Generate Query Embedding
-        vector = embed_query(request.query)
+        vector = embeddings.embed_query(text=request.query)
         
         # Step 2: Vector Search
-        candidates = search(vector, threshold=request.threshold)
+        candidates = full_retrieval.search(vector, threshold=request.threshold)
         if not candidates:
-            return {"answer": "I don't have enough context to answer that.", "context": ""}
+            return {"answer": "I don't have enough context to answer that.", "context": "", "vector": vector}
             
         # Step 3: SpiceDB Permissions
-        spice_client = InsecureClient("localhost:50051", "token")
-        allowed_docs = get_allowed_doc_ids(request.user_id, candidates, spice_client)
+        spice_client = InsecureClient("spicedb:50051", "test")
+        allowed_docs = relationship_reader.get_allowed_doc_ids(request.user_id, candidates, spice_client)
         
         # Step 4: Policy Filtering & Top-K
-        chunk_ids = filter_candidates(candidates, allowed_docs)
+        chunk_ids = policy_filter.filter(candidates, allowed_docs)
         
         # Step 5: Retrieve Formatted Context
-        context_string = retrieve_chunks(chunk_ids)
+        context_string = final_retriever.retrieve_chunks(chunk_ids)
         
         if not context_string:
             return {"answer": "I don't have the answer to that question based on the documents you can access."}
@@ -93,4 +98,4 @@ async def chat_endpoint(request: QueryRequest):
 if __name__ == "__main__":
     config = uvicorn.Config(app, host="0.0.0.0", port=8000)
     server = uvicorn.Server(config)
-    server.serve()
+    asyncio.run(server.serve())

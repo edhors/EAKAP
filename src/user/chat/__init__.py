@@ -7,47 +7,47 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-
-from src.shared.indexing.embeddings import embeddings
-from src.user.final_retrieval import final_retriever
-from src.user.full_retrieval.full_retriever import full_retriever
-from src.shared.spicedb_handler.read_relationships import read_relationships
-from src.user.final_retrieval.policy_filter import policy_filter
-from src.user.final_retrieval.final_retriever import final_retriever
+from src.shared.indexing.embeddings_provider import EmbeddingsProvider
+from src.shared.indexing.embeddings import Embeddings
+from src.user.full_retrieval.full_retriever import FullRetrieval
+from src.shared.spicedb_handler.read_relationships import RelationshipReader
+from src.user.final_retrieval.policy_filter import PolicyFilter
+from src.user.final_retrieval.final_retriever import FinalRetriever
 from authzed.api.v1 import InsecureClient
+from langchain_chroma import Chroma
 
-Embeddings = embeddings.Embeddings
-FullRetrieval = full_retriever.FullRetrieval
-RelationshipReader = read_relationships.RelationshipReader
-PolicyFilter = policy_filter.PolicyFilter
-FinalRetriever = final_retriever.FinalRetriever
 
-# Specific Methods
-# 1- embed_query(self, text:str)
-embed_query = Embeddings.embed_query
+embeddings_provider = EmbeddingsProvider.create_provider("huggingface")
 
-# 2- search(self, query_embeddings, threshold, k)
-search = FullRetrieval.search
+embeddings = Embeddings(embeddings_provider)
 
-# 3- get_allowed_doc_ids(self, user_id, candidates, client)
-get_allowed_doc_ids = RelationshipReader.get_allowed_doc_ids
+vector_store = Chroma(
+    collection_name="documents_collection",
+    embedding_function=embeddings,
+    persist_directory="./chroma_db"
+)
+full_retrieval = FullRetrieval(embeddings, vector_store=vector_store)
 
-# 4- filter(self, candidates, allowed_doc_ids)
-filter_candidates = PolicyFilter.filter
+spice_client = InsecureClient("spicedb:50051", "test")
+relationship_reader = RelationshipReader()
 
-# 5- retrieve_chunks(self, chunks)
-retrieve_chunks = FinalRetriever.retrieve_chunks
+policy_filter = PolicyFilter()
+
+final_retriever = FinalRetriever(vector_store=vector_store)
+
 
 __all__ = [
     "InsecureClient",
     "Embeddings",
+    "embeddings_provider",
+    "embeddings",
+    "full_retrieval",
+    "spice_client",
+    "relationship_reader",
+    "policy_filter",
+    "final_retriever",
     "FullRetrieval",
     "RelationshipReader",
     "PolicyFilter",
     "FinalRetriever",
-    "embed_query",
-    "search",
-    "get_allowed_doc_ids",
-    "filter_candidates",
-    "retrieve_chunks",
 ]
