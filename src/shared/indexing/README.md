@@ -100,18 +100,17 @@ vector_store = Chroma(
     persist_directory="./chroma_db"
 )
 
-# 4. Create indexer and index text
+# 4. Create indexer and index
 indexer = Indexer(embeddings, text_processor, vector_store)
 
 # Option A: Index text directly
 indexer.index("Your text content here", doc_id="doc_1")
 
-# Option B: Load from file and index
+# Option B: Load from file and index (load_file sets doc_id on each document)
 documents = text_processor.load_file("./data/document.pdf", file_type="pdf")
-for i, doc in enumerate(documents):
-    indexer.index(doc.page_content, doc_id=f"doc_{i}")
+indexer.index(documents)
 
-# 6. Search
+# 5. Search
 results = vector_store.similarity_search("your query", k=5)
 ```
 
@@ -263,17 +262,41 @@ Split LangChain Document objects into chunks.
 - `ValueError`: If documents list is empty or None
 - `TypeError`: If documents is not a list
 
-#### `load_file(file_path: Union[str, Path], file_type: Optional[str] = None, encoding: str = "utf-8") -> List[Document]`
+#### `assign_doc_id(documents: List[Document], doc_id: str) -> None` *(static)*
 
-Load a single file and return Document objects.
+Set `doc_id` on each document's metadata. Use this when you have a list of documents (e.g. chunks from the same source) that should share one document identifier. Modifies documents in place.
+
+**Parameters:**
+- `documents` (List[Document]): List of LangChain Document objects to tag
+- `doc_id` (str): Document identifier to set on each document's metadata
+
+**Returns:**
+- `None`
+
+**Raises:**
+- `ValueError`: If documents is None or if doc_id is empty or whitespace
+- `TypeError`: If documents is not a list
+
+**Example:**
+```python
+# Assign the same doc_id to all documents (e.g. from one file)
+TextProcessor.assign_doc_id(documents, "doc_1")
+```
+
+**Note:** `load_file` calls this internally so loaded documents already have `doc_id` set (from the `doc_id` parameter or the file path stem).
+
+#### `load_file(file_path: Union[str, Path], file_type: Optional[str] = None, encoding: str = "utf-8", doc_id: Optional[str] = None) -> List[Document]`
+
+Load a single file and return Document objects. Each returned document has `doc_id` set in metadata (from `doc_id` if provided, otherwise the file path stem).
 
 **Parameters:**
 - `file_path` (Union[str, Path]): Path to the file to load
 - `file_type` (Optional[str]): Type of file (`"pdf"`, `"text"`, `"markdown"`). If None, auto-detected from extension
 - `encoding` (str): Encoding for text files (default: `"utf-8"`)
+- `doc_id` (Optional[str]): Document identifier for all loaded chunks. If None, uses the file path stem (e.g. `"document"` for `document.pdf`)
 
 **Returns:**
-- `List[Document]`: List of Document objects loaded from the file
+- `List[Document]`: List of Document objects loaded from the file, each with `doc_id` in metadata
 
 **Raises:**
 - `FileNotFoundError`: If the file doesn't exist
@@ -287,11 +310,11 @@ Load a single file and return Document objects.
 
 **Example:**
 ```python
-# Auto-detect file type
+# Auto-detect file type; doc_id defaults to file stem (e.g. "document")
 documents = text_processor.load_file("./data/document.pdf")
 
-# Explicit file type
-documents = text_processor.load_file("./data/file.txt", file_type="text")
+# Explicit file type and custom doc_id (e.g. for SpiceDB alignment)
+documents = text_processor.load_file("./data/file.txt", file_type="text", doc_id="doc_1")
 ```
 
 #### `load_directory(directory_path: Union[str, Path], glob_pattern: str = "**/*", loader_type: Optional[str] = None, show_progress: bool = False) -> List[Document]`
@@ -443,10 +466,9 @@ indexer = Indexer(embeddings, text_processor, vector_store)
 # Step 5: Index text directly
 indexer.index("Your document text content here", doc_id="doc_1")
 
-# Or load from file and index
+# Or load from file and index (load_file sets doc_id automatically; pass custom doc_id if needed)
 documents = text_processor.load_file("./data/document.pdf", file_type="pdf")
-for i, doc in enumerate(documents):
-    indexer.index(doc.page_content, doc_id=f"doc_{i}")
+indexer.index(documents)
 
 print("Documents indexed successfully")
 ```
@@ -539,17 +561,16 @@ embeddings = Embeddings(provider)
 
 ### 2. Set Document IDs When Indexing
 
-Provide `doc_id` parameter when indexing to enable proper chunk tracking.
+Document IDs enable proper chunk tracking and alignment with systems like SpiceDB. Use `doc_id` when indexing raw text, or rely on `load_file` which sets `doc_id` automatically (file path stem or a custom value).
 
 ```python
-# Single text with doc_id
+# When loading from file: doc_id is set by load_file (default: file stem, or pass doc_id="custom")
+documents = text_processor.load_file("./data/document.pdf", doc_id="doc_1")
+indexer.index(documents)  # chunk_ids will use doc_id from metadata
+
+# When indexing raw text: pass doc_id explicitly
 indexer.index("Your text here", doc_id="unique_doc_id")
-# Indexer will create chunk_ids like "unique_doc_id_chunk_0"
-
-# Multiple texts with same doc_id
 indexer.index(["Text 1", "Text 2"], doc_id="unique_doc_id")
-
-# Multiple texts with different doc_ids
 indexer.index(["Text 1", "Text 2"], doc_id=["doc_1", "doc_2"])
 ```
 
