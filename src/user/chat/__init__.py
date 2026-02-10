@@ -15,6 +15,7 @@ from src.user.final_retrieval.policy_filter import PolicyFilter
 from src.user.final_retrieval.final_retriever import FinalRetriever
 from authzed.api.v1 import InsecureClient
 from langchain_chroma import Chroma
+from src.user.chat.short_memory import summarize_exchange 
 
 
 embeddings_provider = EmbeddingsProvider.create_provider("huggingface")
@@ -37,6 +38,7 @@ final_retriever = FinalRetriever(vector_store=vector_store)
 
 
 __all__ = [
+    "summarize_exchange",
     "InsecureClient",
     "Embeddings",
     "embeddings_provider",
