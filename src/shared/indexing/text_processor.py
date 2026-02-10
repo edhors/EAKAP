@@ -95,25 +95,61 @@ class TextProcessor:
         
         return self.splitter.split_documents(documents)
     
+    @staticmethod
+    def assign_doc_id(documents: List[Document], doc_id: str) -> None:
+        """
+        Set doc_id on each document's metadata.
+        
+        All documents in the list are assigned the same doc_id (e.g. chunks
+        from the same source file). Creates or updates metadata so that
+        downstream indexing can use a stable document identifier.
+        
+        Args:
+            documents: List of LangChain Document objects to tag
+            doc_id: Document identifier to set on each document's metadata
+            
+        Raises:
+            ValueError: If documents is None or if doc_id is empty
+            TypeError: If documents is not a list
+        """
+        if documents is None:
+            raise ValueError("documents list cannot be None")
+        if not documents:
+            return
+        if not isinstance(documents, list):
+            raise TypeError("documents must be a list")
+        if not doc_id or not doc_id.strip():
+            raise ValueError("doc_id cannot be empty or whitespace")
+        doc_id = doc_id.strip()
+        for doc in documents:
+            if doc.metadata is None:
+                doc.metadata = {}
+            else:
+                doc.metadata = dict(doc.metadata)
+            doc.metadata["doc_id"] = doc_id
+    
     def load_file(
         self,
         file_path: Union[str, Path],
         file_type: Optional[str] = None,
-        encoding: str = "utf-8"
+        encoding: str = "utf-8",
+        doc_id: Optional[str] = None
     ) -> List[Document]:
         """
         Load a single file and return Document objects.
         
         Supports PDF, text, and markdown files. File type is auto-detected
-        from extension if not specified.
+        from extension if not specified. Each returned document has doc_id set
+        in metadata (from doc_id if provided, otherwise the file path stem).
         
         Args:
             file_path: Path to the file to load
             file_type: Type of file ("pdf", "text", "markdown"). If None, auto-detected from extension
             encoding: Encoding for text files (default: "utf-8")
+            doc_id: Document identifier for all loaded chunks. If None, uses the file path stem
         
         Returns:
-            List of Document objects loaded from the file
+            List of Document objects loaded from the file, each with doc_id in metadata
         
         Raises:
             FileNotFoundError: If the file doesn't exist
@@ -144,16 +180,18 @@ class TextProcessor:
         
         try:
             if file_type == "pdf":
-                return self._load_pdf(file_path)
+                documents = self._load_pdf(file_path)
             elif file_type == "text":
-                return self._load_text(file_path, encoding)
+                documents = self._load_text(file_path, encoding)
             elif file_type == "markdown":
-                return self._load_markdown(file_path)
+                documents = self._load_markdown(file_path)
             else:
                 raise ValueError(
                     f"Unsupported file type: {file_type}. "
                     f"Supported types: pdf, text, markdown"
                 )
+            self.assign_doc_id(documents, doc_id if doc_id is not None else str(file_path.stem))
+            return documents
         except ImportError as e:
             raise ImportError(
                 f"Required package not installed for {file_type} files. {str(e)}"
