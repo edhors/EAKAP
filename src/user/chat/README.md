@@ -28,7 +28,7 @@ The chat module provides:
 - **RAG retrieval**: Permission-filtered context from a vector store (Chroma) and SpiceDB.
 - **Configurable LLM**: Multiple providers (Google, OpenAI, Anthropic, Mistral, HuggingFace, Zhipu AI) via `ChatProvider`.
 - **Short-term memory**: Summarized conversation history for multi-turn context.
-- **HTTP API**: FastAPI `POST /chat/ask` with `user_id`, `query`, and optional `threshold`/`top_k`.
+- **HTTP API**: FastAPI `POST /chat/ask` with `user_id`, `query`, and optional `threshold`/`top_k`. Server uses configurable `system_prompt` and maintains `short_term_memory` across requests.
 
 ## Installation
 
@@ -57,9 +57,9 @@ pip install authzed                    # SpiceDB client
 
 This module relies on:
 
-- `src.shared.indexing` (embeddings, Chroma)
-- `src.user.full_retrieval`, `src.user.final_retrieval` (RAG pipeline)
-- `src.shared.spicedb_handler` (relationship reader)
+- `src.shared.indexing` (EmbeddingsProvider, Embeddings)
+- `src.user.full_retrieval` (FullRetrieval), `src.user.final_retrieval` (PolicyFilter, FinalRetriever)
+- `src.shared.spicedb_handler` (RelationshipReader)
 
 Ensure the project root is on `PYTHONPATH` when running or importing (e.g. run as `python -m src.user.chat.chat_routes` from the repo root).
 
@@ -94,13 +94,14 @@ Ensure the project root is on `PYTHONPATH` when running or importing (e.g. run a
 
 ## Configuration
 
-All settings are driven by [config.py](config.py) (pydantic-settings). Use a `.env` file (see [.env.example](.env.example)) or environment variables with prefix `CHAT_`. API keys use standard names (e.g. `GOOGLE_API_KEY`, `ZHIPUAI_API_KEY`).
+All settings are driven by [config.py](config.py) (pydantic-settings). Use a `.env` file or environment variables with prefix `CHAT_`. API keys use standard names (e.g. `GOOGLE_API_KEY`, `ZHIPUAI_API_KEY`).
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CHAT_PROVIDER_TYPE` | LLM provider: `google`, `openai`, `anthropic`, `mistral`, `huggingface`, `zhipuai` | `zhipuai` |
-| `CHAT_MODEL` | Model name for the provider | `glm-4-flash` |
+| `CHAT_MODEL` | Model name for the provider | `glm-4.5-flash` |
 | `CHAT_TEMPERATURE` | Sampling temperature (0–2) | `0.7` |
+| `CHAT_SYSTEM_PROMPT` | System prompt for the agent | *(see config.py)* |
 | `CHAT_SPICEDB_ADDRESS` | SpiceDB gRPC address | `spicedb:50051` |
 | `CHAT_SPICEDB_PREFIX` | SpiceDB prefix | `test` |
 | `CHAT_CHROMA_COLLECTION_NAME` | Chroma collection | `documents_collection` |
@@ -222,7 +223,7 @@ model = ChatProvider.create_provider(
 Defined in [config.py](config.py). A single `settings` instance is exported from the package.
 
 **Attributes (all overridable via env with `CHAT_` prefix, except API keys):**
-- `provider_type`, `model`, `temperature`
+- `provider_type`, `model`, `temperature`, `system_prompt`
 - `google_api_key`, `zhipuai_api_key`, `openai_api_key`, `anthropic_api_key`, `mistral_api_key` (from env, optional)
 - `spicedb_address`, `spicedb_prefix`
 - `chroma_collection_name`, `chroma_persist_directory`
@@ -276,13 +277,13 @@ Returns a short, cleaned summary of one turn (e.g. for appending to context).
 
 #### `clean_text(text) -> str`
 
-Normalizes and compresses text (lowercase, strip URLs/HTML, stopwords, stem/lemmatize). Used internally by `summarize_exchange`.
+Normalizes and compresses text: lowercase, strip URLs/HTML/mentions/hashtags, replace emoticons, remove punctuation and single characters, drop stopwords, then stem and lemmatize. Used internally by `summarize_exchange`.
 
 ---
 
 ### HTTP API
 
-[chat_routes.py](chat_routes.py) defines a FastAPI app and one endpoint.
+[chat_routes.py](chat_routes.py) defines a FastAPI app and one endpoint. The app builds the agent from `settings.provider_type`, `settings.system_prompt`, and the tools at load time, and keeps `app.state.short_term_memory` across requests (each response is summarized and appended via `summarize_exchange`).
 
 #### `POST /chat/ask`
 
@@ -364,7 +365,7 @@ The agent expects `user_id`, and optionally `threshold` and `top_k`, in the mess
 
 ### 4. Use .env for secrets
 
-Do not commit `.env`. Copy [.env.example](.env.example), fill in values, and keep API keys in environment variables.
+Do not commit `.env`. Use a `.env` file for local overrides and keep API keys in environment variables.
 
 ---
 
