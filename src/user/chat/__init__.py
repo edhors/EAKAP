@@ -15,30 +15,34 @@ from src.user.final_retrieval.policy_filter import PolicyFilter
 from src.user.final_retrieval.final_retriever import FinalRetriever
 from authzed.api.v1 import InsecureClient
 from langchain_chroma import Chroma
-from src.user.chat.short_memory import summarize_exchange 
+from src.user.chat.short_memory import summarize_exchange
+from .chat import Chat
+from .chat_provider import ChatProvider
+from .config import settings  # type: ignore[reportMissingImports]
 
-
-embeddings_provider = EmbeddingsProvider.create_provider("huggingface")
+embeddings_provider = EmbeddingsProvider.create_provider(settings.embeddings_provider)
 
 embeddings = Embeddings(embeddings_provider)
 
 vector_store = Chroma(
-    collection_name="documents_collection",
+    collection_name=settings.chroma_collection_name,
     embedding_function=embeddings,
-    persist_directory="./chroma_db"
+    persist_directory=settings.chroma_persist_directory,
 )
 full_retrieval = FullRetrieval(embeddings, vector_store=vector_store)
 
-spice_client = InsecureClient("spicedb:50051", "test")
+spice_client = InsecureClient(settings.spicedb_address, settings.spicedb_prefix)
 relationship_reader = RelationshipReader()
 
 policy_filter = PolicyFilter()
 
 final_retriever = FinalRetriever(vector_store=vector_store)
 
-
 __all__ = [
+    "Chat",
+    "ChatProvider",
     "summarize_exchange",
+    "settings",
     "InsecureClient",
     "Embeddings",
     "embeddings_provider",
