@@ -15,6 +15,8 @@ STOPWORDS = set(stopwords.words('english'))
 
 def clean_text(text):
     """Cleans and compresses a block of text for simplified storage."""
+    if not isinstance(text, str):
+        text = " ".join(str(t) for t in text) if isinstance(text, (list, tuple)) else str(text)
     text = text.lower()
     text = re.sub(r'https?://\S+|www\.\S+', '', text)  # Remove URLs
     text = re.sub(r'<.*?>', '', text)  # Remove HTML tags
@@ -45,3 +47,5 @@ def summarize_exchange(user_input, assistant_response):
     cleaned_assistant = clean_text(assistant_response)
     return f"User: {cleaned_user}\nAssistant: {cleaned_assistant}"
 
+if __name__ == "__main__":
+    print(summarize_exchange("What is the capital of France?", "Paris is the capital of France."))
