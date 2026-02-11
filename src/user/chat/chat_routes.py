@@ -51,13 +51,7 @@ def _provider_config() -> dict:
 
 # Wiring at module load
 _provider = ChatProvider.create_provider(settings.provider_type, **_provider_config())
-_system_prompt = """
-You are the EAKAP AI Assistant. Use the following context to answer the user's question.
-If the context doesn't contain the answer, say you don't have the answer to that question.
-You must use retrieve_context to answer the user's question.
-When calling retrieve_context, use the user_id, threshold, and top_k from the user message.
-When calling retrieve_context, manipulate the user query to only key points e.g. "what is the capital of France?" -> "capital France", or "Explain the concept of AI"? -> "concept AI".
-"""
+_system_prompt = settings.system_prompt
 _chat = Chat(_provider, tools, _system_prompt)
 
 
