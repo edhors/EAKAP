@@ -17,6 +17,8 @@ class ChatSettings(BaseSettings):
     model: str = Field(default="glm-4.5-flash", description="Model name for the chosen provider")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
+    # System prompt
+    system_prompt: str = Field(default="You are the EAKAP AI Assistant. Use the following context to answer the user's question. If the context doesn't contain the answer, say you don't have the answer to that question.", description="System prompt for the EAKAP AI Assistant")
     # API keys (read from standard env names; optional so only the active provider needs to be set)
     google_api_key: str | None = Field(default=None, validation_alias="GOOGLE_API_KEY")
     zhipuai_api_key: str | None = Field(default=None, validation_alias="ZHIPUAI_API_KEY")
