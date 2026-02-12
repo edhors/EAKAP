@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch
 
 # Adjusting imports to match the project root structure
-from src.user.chat.chat_routes import app
+from src.main import app
 from src.user.chat.short_memory import clean_text, summarize_exchange
 from src.user.chat.chat_provider import ChatProvider
 from src.user.chat.config import settings
@@ -41,7 +41,7 @@ def test_chat_provider_invalid_type():
         ChatProvider.create_provider("invalid_llm", google_api_key="test")
 
 # --- Integration Tests: chat_routes.py & chat.py ---
-@patch("src.user.chat.chat_routes._chat.ask")
+@patch("src.routers.chat._chat.ask")
 def test_chat_endpoint_success(mock_ask):
     """Tests the /chat/ask endpoint and short_term_memory update."""
     mock_ask.return_value = "The capital of France is Paris."
@@ -60,7 +60,7 @@ def test_chat_endpoint_success(mock_ask):
     # Verify memory was updated in app state via the summarize_exchange logic
     assert "franc" in app.state.short_term_memory
 
-@patch("src.user.chat.chat_routes._chat.ask")
+@patch("src.routers.chat._chat.ask")
 def test_chat_endpoint_error_handling(mock_ask):
     """Tests if the API correctly returns a 500 error on LLM failure."""
     mock_ask.side_effect = Exception("LLM connection failed")
@@ -79,25 +79,27 @@ def test_chat_endpoint_error_handling(mock_ask):
 @patch("src.user.chat.tools.InsecureClient")
 def test_retrieve_context_tool(mock_spice, mock_final, mock_rel, mock_retrieval, mock_emb):
     """Tests the retrieve_context tool logic including SpiceDB filtering."""
-    from src.user.chat.tools import retrieve_context
-    
+    from src.user.chat.tools import current_user_id, retrieve_context
+
     # Setup mocks for the RAG pipeline
     mock_emb.embed_query.return_value = [0.1, 0.2]
     mock_retrieval.search.return_value = [
-    {"doc_id": "doc1", "chunk_id": "chunk_1", "score": "0.9"},
-    {"doc_id": "doc2", "chunk_id": "chunk_2", "score": "0.8"}
+        {"doc_id": "doc1", "chunk_id": "chunk_1", "score": "0.9"},
+        {"doc_id": "doc2", "chunk_id": "chunk_2", "score": "0.8"},
     ]
-    mock_rel.get_allowed_doc_ids.return_value = ["doc1"] # Simulation: only doc1 allowed
+    mock_rel.get_allowed_doc_ids.return_value = ["doc1"]  # Simulation: only doc1 allowed
     mock_final.retrieve_chunks.return_value = "Content from doc1"
-    
-    
-    result = retrieve_context.invoke({
-    "query": "search query", 
-    "user_id": "user_1", 
-    "threshold": 1.5, 
-    "top_k": 2
-})
-    
+
+    token = current_user_id.set("user_1")
+    try:
+        result = retrieve_context.invoke({
+            "query": "search query",
+            "threshold": 1.5,
+            "top_k": 2,
+        })
+    finally:
+        current_user_id.reset(token)
+
     assert result == "Content from doc1"
     mock_rel.get_allowed_doc_ids.assert_called_once()
     mock_spice.assert_called_once_with(settings.spicedb_address, settings.spicedb_prefix)
