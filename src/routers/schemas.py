@@ -5,7 +5,6 @@ from fastapi import Request
 
 
 class QueryRequest(BaseModel):
-    user_id: str
     query: str
     threshold: float = settings.default_threshold
     top_k: int = settings.default_top_k
