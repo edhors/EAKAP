@@ -20,6 +20,7 @@ from src.user.chat import Chat, ChatProvider, summarize_exchange, settings
 from src.user.chat.tools import tools
 from src.shared.auth.dependencies import get_current_active_user
 from src.shared.userdb_handler import User
+from src.user.chat.tools import current_user_id, tools
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -52,6 +53,7 @@ def chat_endpoint(
     body: QueryRequest,
     current_user: User = Depends(get_current_active_user),
 ):
+    token = current_user_id.set(current_user.user_id)
     try:
         user_id = current_user.id
         # Include user_id/threshold/top_k so the agent can pass them to retrieve_context
@@ -59,7 +61,7 @@ def chat_endpoint(
         context_string = (
             state_short_mem
             + "\n"
-            + f"user_id: {user_id}, threshold: {body.threshold}, top_k: {body.top_k}\n\n"
+            + f"threshold: {body.threshold}, top_k: {body.top_k}\n\n"
             + body.query
         )
         response = _chat.ask(context_string)
