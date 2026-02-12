@@ -12,12 +12,14 @@ if __name__ == "__main__":
         sys.path.insert(0, _project_root)
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, APIRouter, Request
+from fastapi import FastAPI, HTTPException, APIRouter, Request, Depends
 
 load_dotenv()
 
 from src.user.chat import Chat, ChatProvider, summarize_exchange, settings
 from src.user.chat.tools import tools
+from src.shared.auth.dependencies import get_current_active_user
+from src.shared.userdb_handler import User
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -45,21 +47,26 @@ _chat = Chat(_provider, tools, _system_prompt)
 
 
 @router.post("/ask")
-def chat_endpoint(request:Request, body: QueryRequest):
+def chat_endpoint(
+    request: Request,
+    body: QueryRequest,
+    current_user: User = Depends(get_current_active_user),
+):
     try:
+        user_id = current_user.id
         # Include user_id/threshold/top_k so the agent can pass them to retrieve_context
         state_short_mem = request.app.state.short_term_memory
         context_string = (
             state_short_mem
             + "\n"
-            + f"user_id: {body.user_id}, threshold: {body.threshold}, top_k: {body.top_k}\n\n"
+            + f"user_id: {user_id}, threshold: {body.threshold}, top_k: {body.top_k}\n\n"
             + body.query
         )
         response = _chat.ask(context_string)
         state_short_mem += summarize_exchange(body.query, response) + "\n"
         return {
             "answer": response,
-            "user_id": body.user_id,
+            "user_id": user_id,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
