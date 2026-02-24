@@ -33,6 +33,8 @@ class ChatSettings(BaseSettings):
     # Chroma
     chroma_collection_name: str = Field(default="documents_collection")
     chroma_persist_directory: str = Field(default="./chroma_db")
+    chroma_ip: str = Field(default="chromadb")
+    chroma_port: int = Field(default=8123)
 
     # Embeddings
     embeddings_provider: str = Field(default="huggingface")
