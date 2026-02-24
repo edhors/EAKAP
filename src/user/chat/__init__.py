@@ -19,6 +19,9 @@ from src.user.chat.short_memory import summarize_exchange
 from .chat import Chat
 from .chat_provider import ChatProvider
 from .config import settings  # type: ignore[reportMissingImports]
+from chromadb import HttpClient
+
+chroma_client = HttpClient(host=settings.chroma_ip, port=settings.chroma_port)
 
 embeddings_provider = EmbeddingsProvider.create_provider(settings.embeddings_provider)
 
@@ -27,7 +30,7 @@ embeddings = Embeddings(embeddings_provider)
 vector_store = Chroma(
     collection_name=settings.chroma_collection_name,
     embedding_function=embeddings,
-    persist_directory=settings.chroma_persist_directory,
+    client=chroma_client,
 )
 full_retrieval = FullRetrieval(embeddings, vector_store=vector_store)
 
