@@ -29,6 +29,9 @@ def create_access_token(data: Dict[str, Any]) -> str:
         "iat": datetime.now(),
         "type": "access",
     })
+    # DEBUG: Print secret key length and value
+    print(f"[JWT DEBUG] secret_key length: {len(settings.secret_key)}")
+    print(f"[JWT DEBUG] secret_key value: {settings.secret_key}")
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
     return encoded_jwt
 

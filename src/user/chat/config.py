@@ -13,8 +13,8 @@ env_path = find_dotenv()
 
 class ChatSettings(BaseSettings):
     # LLM / provider
-    provider_type: str = Field(default="zhipuai", description="One of: google, openai, anthropic, mistral, huggingface, zhipuai")
-    model: str = Field(default="glm-4.5-flash", description="Model name for the chosen provider")
+    provider_type: str = Field(default="google", description="One of: google, openai, anthropic, mistral, huggingface, zhipuai")
+    model: str = Field(default="gemini-2.5-flash-lite", description="Model name for the chosen provider")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
     # System prompt
@@ -27,13 +27,13 @@ class ChatSettings(BaseSettings):
     mistral_api_key: str | None = Field(default=None, validation_alias="MISTRAL_API_KEY")
 
     # SpiceDB
-    spicedb_address: str = Field(default="spicedb:50051")
+    spicedb_address: str = Field(default="129.151.159.70:50051")
     spicedb_prefix: str = Field(default="test")
 
     # Chroma
     chroma_collection_name: str = Field(default="documents_collection")
     chroma_persist_directory: str = Field(default="./chroma_db")
-    chroma_ip: str = Field(default="chromadb")
+    chroma_ip: str = Field(default="129.151.159.70")
     chroma_port: int = Field(default=8123)
 
     # Embeddings
