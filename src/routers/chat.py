@@ -53,24 +53,18 @@ def chat_endpoint(
     body: QueryRequest,
     current_user: User = Depends(get_current_active_user),
 ):
-    token = current_user_id.set(current_user.user_id)
-    try:
-        user_id = current_user.id
-        # Include user_id/threshold/top_k so the agent can pass them to retrieve_context
-        state_short_mem = request.app.state.short_term_memory
-        context_string = (
-            state_short_mem
-            + "\n"
-            + f"threshold: {body.threshold}, top_k: {body.top_k}\n\n"
-            + body.query
-        )
-        response = _chat.ask(context_string)
-        state_short_mem += summarize_exchange(body.query, response) + "\n"
-        return {
-            "answer": response,
-            "user_id": user_id,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
+    token = current_user_id.set(current_user.id)
+    user_id = current_user.id
+    state_short_mem = request.app.state.short_term_memory
+    context_string = (
+        state_short_mem
+        + "\n"
+        + f"threshold: {body.threshold}, top_k: {body.top_k}\n\n"
+        + body.query
+    )
+    response = _chat.ask(context_string)
+    state_short_mem += summarize_exchange(body.query, response) + "\n"
+    return {
+        "answer": response,
+        "user_id": user_id,
+    }
