@@ -4,7 +4,7 @@ Shared module for document metadata persistence. Uses **SQLModel** with a **Turs
 
 ## Overview
 
-- **Document** model: `dept`, `project`, `clearance` (and `id`)
+- **Document** model: `dept`, `project`, `clearance`, `url`, and `id`
 - Session-based **DocumentService** for create, get by id, and delete
 - Same Turso env vars as `userdb_handler`; this module uses an **embedded** libSQL DB that syncs with the remote Turso URL
 
@@ -71,7 +71,7 @@ session = next(session_gen)
 doc_svc = DocumentService(session)
 
 # Create
-doc = doc_svc.create_doc(dept="engineering", project="proj-a", clearance=2)
+doc = doc_svc.create_doc(dept="engineering", project="proj-a", clearance=2, url="https://example.com/doc")
 
 # Read
 doc = doc_svc.get_doc_by_id(doc.id)
@@ -84,7 +84,7 @@ doc_svc.delete_doc(doc.id)
 
 | Service | Read | Write |
 |---------|------|--------|
-| **DocumentService** | `get_doc_by_id(document_id)` → `Document \| None` | `create_doc(dept, project, clearance)` → `Document`, `delete_doc(document_id)` → `bool` |
+| **DocumentService** | `get_doc_by_id(document_id)` → `Document \| None` | `create_doc(dept, project, clearance, url)` → `Document`, `delete_doc(document_id)` → `bool` |
 
 - **Read:** returns the `Document` or `None` if not found.
 - **Write:** create returns the new `Document`; delete returns `True` if deleted, `False` if not found.
@@ -98,6 +98,6 @@ doc_svc.delete_doc(doc.id)
 
 ## Model
 
-- **Document:** `id` (UUID), `dept`, `project`, `clearance`
+- **Document:** `id` (UUID), `dept`, `project`, `clearance`, `url`
 
 No Pydantic request/response schemas in this module; the service builds `Document` directly.

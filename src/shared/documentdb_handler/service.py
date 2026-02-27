@@ -9,9 +9,9 @@ class DocumentService:
     def __init__(self, session: Session):
         self._session = session
 
-    def create_doc(self, dept: str, project:str,clearance:int) -> Document:
+    def create_doc(self, dept: str, project: str, clearance: int, url: str) -> Document:
         """Create a new document."""
-        document = Document(dept=dept,project=project,clearance=clearance)
+        document = Document(dept=dept, project=project, clearance=clearance, url=url)
         self._session.add(document)
         self._session.commit()
         self._session.refresh(document)
