@@ -6,3 +6,4 @@ class Document(SQLModel, table=True):
     dept: str = Field()
     project: str = Field()
     clearance: int = Field()
+    url: str = Field()
